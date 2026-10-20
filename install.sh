@@ -85,6 +85,14 @@ DEPENDENCIES=(
     ttf-font-awesome
     ttf-inter
     ttf-jetbrains-mono-nerd
+    # ── Essential Everyday Apps ──
+    nautilus
+    micro
+    steam
+    loupe
+    file-roller
+    pavucontrol
+    hyprpolkitagent
 )
 
 MISSING_PKGS=()
@@ -119,6 +127,29 @@ if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
     fi
 else
     ok "All core package dependencies are satisfied!"
+fi
+
+# Optional recommended AUR apps (Vesktop, Brave)
+EXTRA_AUR=()
+if ! command -v vesktop &>/dev/null && ! (command -v flatpak &>/dev/null && flatpak info dev.vencord.Vesktop &>/dev/null 2>&1); then
+    EXTRA_AUR+=(vesktop-bin)
+fi
+if ! command -v brave &>/dev/null && ! command -v brave-browser &>/dev/null; then
+    EXTRA_AUR+=(brave-bin)
+fi
+
+AUR_HELPER=""
+if command -v yay &>/dev/null; then
+    AUR_HELPER="yay"
+elif command -v paru &>/dev/null; then
+    AUR_HELPER="paru"
+fi
+
+if [ ${#EXTRA_AUR[@]} -gt 0 ] && [ -n "$AUR_HELPER" ]; then
+    read -rp "  Install recommended apps (${EXTRA_AUR[*]}) with $AUR_HELPER? [Y/n] " aur_extra_choice
+    if [[ ! "$aur_extra_choice" =~ ^[Nn]$ ]]; then
+        $AUR_HELPER -S --needed "${EXTRA_AUR[@]}" || warn "Could not install some AUR packages."
+    fi
 fi
 
 # ─── 2. Backup Existing Configs ───────────────────────────────────────────────

@@ -121,21 +121,45 @@ cd ~/.dotfiles
 
 ---
 
-## 📦 Required Dependencies
+## 📦 Required Dependencies & Essential Applications
 
-If you prefer to install dependencies manually:
+If you prefer to install software manually or verify your environment:
 
-### Core & Compositor
+### 1. Essential Desktop & Everyday Apps
+| Application | Category | Package | Description |
+| :--- | :--- | :--- | :--- |
+| **Nautilus** | File Manager | `nautilus` | Sleek GTK4 file manager with dark theme support |
+| **Micro** | Terminal Editor | `micro` | Modern terminal text editor with mouse support & standard shortcuts |
+| **Vesktop** | Discord Client | `vesktop-bin` | Wayland-optimized Discord client with screen audio sharing |
+| **Steam** | Gaming Platform | `steam` | Valve gaming client with Proton/Wine compatibility |
+| **Brave** | Web Browser | `brave-bin` | Fast, privacy-oriented web browser |
+| **Loupe** | Image Viewer | `loupe` | Fast image viewer for GNOME/Wayland |
+| **File Roller** | Archive Manager | `file-roller` | Archive manager for `.zip`, `.tar.gz`, `.7z`, and `.rar` |
+| **Pavucontrol** | Audio Device Manager | `pavucontrol` | Detailed PipeWire/PulseAudio input/output switcher |
+| **Hyprpolkitagent** | Auth Agent | `hyprpolkitagent` | Polkit authentication agent for privilege escalation |
+
+```bash
+# Official repository apps
+sudo pacman -S nautilus micro steam loupe file-roller pavucontrol hyprpolkitagent vlc
+
+# AUR apps (Vesktop & Brave)
+yay -S vesktop-bin brave-bin
+# (Or via Flatpak: flatpak install flathub dev.vencord.Vesktop com.brave.Browser)
+```
+
+---
+
+### 2. Core Compositor & Environment
 ```bash
 sudo pacman -S hyprland hypridle hyprlock swaybg pipewire wireplumber playerctl brightnessctl power-profiles-daemon upower networkmanager bluez bluez-utils wl-clipboard grim slurp jq python zenity ghostty fish fastfetch cava btop
 ```
 
-### AUR Packages
+### 3. AUR Desktop Shell
 ```bash
 yay -S quickshell-git
 ```
 
-### Required Fonts
+### 4. Required Fonts
 ```bash
 sudo pacman -S ttf-font-awesome ttf-inter ttf-jetbrains-mono-nerd
 ```
