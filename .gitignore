@@ -1,0 +1,15 @@
+# Runtime & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+*~
+.DS_Store
+
+# Backups
+*.bak
+*.old
+*.tmp
+
+# User specific runtime state
+.config/hypr/current_wallpaper
