@@ -12,7 +12,7 @@ PanelWindow {
     property bool isSubmitting: false
     property string fifoPath: ""
     property string rawWindowsString: ""
-    property bool allowToken: false
+    property bool allowToken: true
     property string activeTab: "screens" // "screens", "windows", "region"
 
     property var screensList: []
@@ -132,7 +132,7 @@ PanelWindow {
         isSubmitting = false
         fifoPath = fifo
         rawWindowsString = rawWindows || ""
-        allowToken = false
+        allowToken = true
         activeTab = "screens"
 
         // Parse XDPH_WINDOW_SHARING_LIST
