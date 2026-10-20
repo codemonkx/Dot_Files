@@ -9,6 +9,7 @@ PanelWindow {
     id: sharePickerWindow
 
     property bool isOpen: false
+    property bool isSubmitting: false
     property string fifoPath: ""
     property string rawWindowsString: ""
     property bool allowToken: false
@@ -128,6 +129,7 @@ PanelWindow {
     }
 
     function openPicker(fifo, rawWindows) {
+        isSubmitting = false
         fifoPath = fifo
         rawWindowsString = rawWindows || ""
         allowToken = false
@@ -171,10 +173,11 @@ PanelWindow {
     }
 
     function submitSelection(type, val) {
-        if (!fifoPath) {
+        if (!fifoPath || isSubmitting) {
             isOpen = false
             return
         }
+        isSubmitting = true
         let prefix = allowToken ? "[SELECTION]r/" : "[SELECTION]/"
         let out = prefix + type + ":" + val
         finishProc.command = ["sh", "-c", 'printf "%s\\n" "$1" > "$2"', "--", out, fifoPath]
@@ -184,11 +187,14 @@ PanelWindow {
     }
 
     function cancelSelection() {
-        if (fifoPath) {
-            finishProc.command = ["sh", "-c", 'printf "%s\\n" "$1" > "$2"', "--", "CANCEL", fifoPath]
-            finishProc.running = false
-            finishProc.running = true
+        if (!fifoPath || isSubmitting) {
+            isOpen = false
+            return
         }
+        isSubmitting = true
+        finishProc.command = ["sh", "-c", 'printf "%s\\n" "$1" > "$2"', "--", "CANCEL", fifoPath]
+        finishProc.running = false
+        finishProc.running = true
         isOpen = false
     }
 
