@@ -11,7 +11,7 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
 
 <br/>
 
-<img src="assets/desktop_preview.png" alt="Clean Desktop Preview" width="100%"/>
+<img src="assets/desktop_showcase.png" alt="Desktop Showcase" width="100%"/>
 
 </div>
 
@@ -26,31 +26,31 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
     <td width="50%" align="center">
       <b>🎛️ Main Control Panel</b><br/>
       <i>GNOME-style Quick Toggles & Trio of Pill Sliders</i><br/><br/>
-      <img src="assets/control_panel.png" width="350" />
+      <img src="assets/control_panel_card.png" width="350" />
     </td>
     <td width="50%" align="center">
       <b>⚙️ System Settings Panel</b><br/>
       <i>Unified 2×3 Grid & Sliding Power Profile</i><br/><br/>
-      <img src="assets/settings_panel.png" width="350" />
+      <img src="assets/settings_panel_card.png" width="350" />
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
       <b>🚀 Application Launcher</b><br/>
       <i>Centered search & categorized quick launch</i><br/><br/>
-      <img src="assets/clean_launcher.png" width="480" />
+      <img src="assets/app_launcher_view.png" width="480" />
     </td>
     <td width="50%" align="center">
       <b>🖼️ Animated Wallpaper Selector</b><br/>
       <i>Grid explorer, folder picker & cross-fade engine</i><br/><br/>
-      <img src="assets/clean_wallpapers.png" width="480" />
+      <img src="assets/wallpaper_selector_view.png" width="480" />
     </td>
   </tr>
   <tr>
     <td colspan="2" align="center">
       <b>🎵 Full Media Player</b><br/>
       <i>Interactive playback, waveform visualizer & album art glow</i><br/><br/>
-      <img src="assets/clean_media_player.png" width="70%" />
+      <img src="assets/media_player_view.png" width="70%" />
     </td>
   </tr>
 </table>
