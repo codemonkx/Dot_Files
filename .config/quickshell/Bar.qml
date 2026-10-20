@@ -1082,6 +1082,16 @@ Scope {
             root.showControlPanel = true
             controlPanelPopup.openAudioView()
         }
+        function openMic() {
+            root.showFullPlayer = false
+            root.showCalendar = false
+            root.showNotificationPanel = false
+            root.showAppLauncher = false
+            root.showPowerMenu = false
+            root.showWallpaperSelector = false
+            root.showControlPanel = true
+            controlPanelPopup.openMicView()
+        }
         function openSettings() {
             root.showFullPlayer = false
             root.showCalendar = false

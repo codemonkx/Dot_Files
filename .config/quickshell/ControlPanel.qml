@@ -61,6 +61,9 @@ PanelWindow {
     property bool btScanning: false
     property var audioSinks: []
     property bool audioScanning: false
+    property var audioSources: []
+    property bool audioSourcesScanning: false
+    property string audioTab: "output" // "output" or "input"
 
     // Settings view properties
     property string currentPowerProfile: "performance"
@@ -174,6 +177,7 @@ PanelWindow {
             btStatusProc.running = true
             brightGetProc.running = true
             audioSinksProc.running = true
+            audioSourcesProc.running = true
             settingsQueryProc.running = true
         } else {
             dropDownAnim.stop()
@@ -559,10 +563,92 @@ PanelWindow {
         }
     }
 
+    // 10b. Audio Sources (Microphone) Query Process
+    Process {
+        id: audioSourcesProc
+        command: ["sh", "-c", "echo '===DEFAULT==='; pactl get-default-source 2>/dev/null; echo '===SOURCES==='; pactl -f json list sources 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                controlPanelWindow.audioSourcesScanning = false
+                let textStr = text
+                let defSection = textStr.indexOf("===DEFAULT===")
+                let sourcesSection = textStr.indexOf("===SOURCES===")
+                if (defSection === -1 || sourcesSection === -1) return
+                let defSource = textStr.substring(defSection + 14, sourcesSection).trim()
+                let sourcesJson = textStr.substring(sourcesSection + 14).trim()
+                try {
+                    let rawList = JSON.parse(sourcesJson)
+                    let list = []
+                    for (let i = 0; i < rawList.length; i++) {
+                        let s = rawList[i]
+                        let name = s.name || ""
+                        if (s.monitor_source || name.indexOf(".monitor") !== -1) continue
+                        let desc = s.description || name
+                        let isDefSource = (name === defSource)
+                        let ports = s.ports || []
+
+                        if (ports.length > 1) {
+                            for (let j = 0; j < ports.length; j++) {
+                                let p = ports[j]
+                                let isCurrentPort = isDefSource && (s.active_port === p.name)
+                                let pDesc = p.description || p.name
+                                let pNameLower = p.name.toLowerCase()
+                                let icon = "\uf130"
+                                if (pNameLower.includes("headset") || pNameLower.includes("headphone")) {
+                                    icon = "\uf025"
+                                }
+                                list.push({
+                                    sourceName: name,
+                                    portName: p.name,
+                                    title: desc + " (" + pDesc + ")",
+                                    subtitle: isCurrentPort ? "Active Microphone" : (p.availability === "not available" ? "Not plugged in" : "Available"),
+                                    isDefault: isCurrentPort,
+                                    icon: icon,
+                                    available: p.availability !== "not available"
+                                })
+                            }
+                        } else {
+                            let props = s.properties || {}
+                            let ff = (props["device.form_factor"] || "").toLowerCase()
+                            let bus = (props["device.bus"] || "").toLowerCase()
+                            let icon = "\uf130"
+                            if (ff.includes("headphone") || ff.includes("headset")) {
+                                icon = "\uf025"
+                            } else if (bus.includes("bluetooth") || name.includes("bluez")) {
+                                icon = "\uf294"
+                            } else if (props["device.class"] === "webcam" || name.toLowerCase().includes("webcam") || desc.toLowerCase().includes("camera")) {
+                                icon = "\uf03d"
+                            }
+                            list.push({
+                                sourceName: name,
+                                portName: "",
+                                title: desc,
+                                subtitle: isDefSource ? "Active Microphone" : "Available",
+                                isDefault: isDefSource,
+                                icon: icon,
+                                available: true
+                            })
+                        }
+                    }
+                    list.sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0) || (b.available ? 1 : 0) - (a.available ? 1 : 0))
+                    controlPanelWindow.audioSources = list
+                } catch (e) {
+                    console.log("Error parsing audio sources:", e)
+                }
+            }
+        }
+    }
+
     Timer {
         id: audioRefreshTimer
         interval: 200
-        onTriggered: refreshAudioSinks()
+        onTriggered: {
+            if (controlPanelWindow.audioTab === "input") {
+                refreshAudioSources()
+            } else {
+                refreshAudioSinks()
+            }
+        }
     }
 
     function refreshAudioSinks() {
@@ -570,10 +656,23 @@ PanelWindow {
         audioSinksProc.running = true
     }
 
+    function refreshAudioSources() {
+        audioSourcesScanning = true
+        audioSourcesProc.running = true
+    }
+
     function openAudioView() {
         lastViewChangeTime = Date.now()
         currentView = "audio"
+        audioTab = "output"
         refreshAudioSinks()
+    }
+
+    function openMicView() {
+        lastViewChangeTime = Date.now()
+        currentView = "audio"
+        audioTab = "input"
+        refreshAudioSources()
     }
 
     function selectAudioSink(item) {
@@ -581,6 +680,15 @@ PanelWindow {
         Quickshell.execDetached(["pactl", "set-default-sink", item.sinkName])
         if (item.portName && item.portName !== "") {
             Quickshell.execDetached(["pactl", "set-sink-port", item.sinkName, item.portName])
+        }
+        audioRefreshTimer.restart()
+    }
+
+    function selectAudioSource(item) {
+        if (!item) return
+        Quickshell.execDetached(["pactl", "set-default-source", item.sourceName])
+        if (item.portName && item.portName !== "") {
+            Quickshell.execDetached(["pactl", "set-source-port", item.sourceName, item.portName])
         }
         audioRefreshTimer.restart()
     }
@@ -1615,6 +1723,20 @@ PanelWindow {
                                 font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
                                 color: (!controlPanelWindow.micMuted && controlPanelWindow.micVolume > 0.85) ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
                             }
+
+                            // Audio input / microphone switcher button / chevron
+                            Item {
+                                width: 18
+                                height: 24
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "\uf054" // chevron-right
+                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                    color: (!controlPanelWindow.micMuted && controlPanelWindow.micVolume > 0.90) ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
+                                    opacity: 0.75
+                                }
+                            }
                         }
 
                         // Drag & click handler for mic slider
@@ -1622,9 +1744,13 @@ PanelWindow {
                             id: mainMicMouseArea
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
 
                             onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton || mouse.x > width - 42) {
+                                    controlPanelWindow.openMicView()
+                                    return
+                                }
                                 if (mouse.x < 42) {
                                     controlPanelWindow.toggleMicMute()
                                     return
@@ -2537,7 +2663,7 @@ PanelWindow {
                 }
             }
 
-            // ─── Audio Output Devices Subview Layout ──────────
+            // ─── Audio Devices Subview Layout (Output & Input) ──────────
             ColumnLayout {
                 id: audioViewLayout
                 anchors {
@@ -2547,10 +2673,10 @@ PanelWindow {
                     leftMargin: 16
                     rightMargin: 16
                 }
-                spacing: 10
+                spacing: 12
                 visible: controlPanelWindow.currentView === "audio"
 
-                // Header
+                // ── Header (Back Button, Dynamic Title, Refresh) ──
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
@@ -2578,7 +2704,7 @@ PanelWindow {
                     }
 
                     Text {
-                        text: "Audio Output Devices"
+                        text: controlPanelWindow.audioTab === "input" ? "Microphone Devices" : "Audio Output Devices"
                         font { family: "Inter"; pixelSize: 14; weight: Font.Bold }
                         color: "#FFFFFF"
                     }
@@ -2596,8 +2722,8 @@ PanelWindow {
                             anchors.centerIn: parent
                             text: "\uf021" // sync
                             font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
-                            color: controlPanelWindow.audioScanning ? controlPanelWindow.accentColor : controlPanelWindow.fgColor
-                            rotation: controlPanelWindow.audioScanning ? 180 : 0
+                            color: (controlPanelWindow.audioTab === "input" ? controlPanelWindow.audioSourcesScanning : controlPanelWindow.audioScanning) ? controlPanelWindow.accentColor : controlPanelWindow.fgColor
+                            rotation: (controlPanelWindow.audioTab === "input" ? controlPanelWindow.audioSourcesScanning : controlPanelWindow.audioScanning) ? 180 : 0
                             Behavior on rotation { NumberAnimation { duration: 300 } }
                         }
 
@@ -2606,36 +2732,134 @@ PanelWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.refreshAudioSinks()
+                            onClicked: {
+                                if (controlPanelWindow.audioTab === "input") {
+                                    controlPanelWindow.refreshAudioSources()
+                                } else {
+                                    controlPanelWindow.refreshAudioSinks()
+                                }
+                            }
                         }
                     }
                 }
 
-                // Audio Sinks List or Empty State
+                // ── 2-Way Sliding Segmented Tab Pill (Output vs Input) ──
+                Rectangle {
+                    id: audioTabContainer
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 38
+                    radius: 19
+                    color: controlPanelWindow.bgColor2
+
+                    // Active Sliding Indicator Pill
+                    Rectangle {
+                        id: audioTabPill
+                        y: 3
+                        height: parent.height - 6
+                        width: Math.round((parent.width - 6) / 2)
+                        x: controlPanelWindow.audioTab === "input" ? Math.round(3 + (parent.width - 6) / 2) : 3
+                        radius: 16
+                        color: controlPanelWindow.accentColor
+                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                    }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 3
+                        spacing: 0
+
+                        // Output Tab
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Text {
+                                    text: "\uf028" // volume-high
+                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                    color: controlPanelWindow.audioTab === "output" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Output (Speakers)"
+                                    font { family: "Inter"; pixelSize: 11; weight: Font.Bold }
+                                    color: controlPanelWindow.audioTab === "output" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    controlPanelWindow.audioTab = "output"
+                                    controlPanelWindow.refreshAudioSinks()
+                                }
+                            }
+                        }
+
+                        // Input Tab
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Text {
+                                    text: "\uf130" // microphone
+                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                    color: controlPanelWindow.audioTab === "input" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Input (Mic)"
+                                    font { family: "Inter"; pixelSize: 11; weight: Font.Bold }
+                                    color: controlPanelWindow.audioTab === "input" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    controlPanelWindow.audioTab = "input"
+                                    controlPanelWindow.refreshAudioSources()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Device List (Outputs or Inputs) ──
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    // Sinks List (Audio Output)
                     ListView {
-                        id: audioListView
+                        id: audioSinksListView
                         anchors.fill: parent
                         clip: true
                         spacing: 6
                         boundsBehavior: Flickable.StopAtBounds
-                        model: controlPanelWindow.audioSinks
-                        visible: controlPanelWindow.audioSinks.length > 0
+                        model: controlPanelWindow.audioTab === "output" ? controlPanelWindow.audioSinks : []
+                        visible: controlPanelWindow.audioTab === "output" && controlPanelWindow.audioSinks.length > 0
 
                         delegate: Rectangle {
                             required property var modelData
-                            width: audioListView.width
+                            width: audioSinksListView.width
                             height: 48
                             radius: 12
-                            color: modelData.isDefault ? Qt.rgba(137/255, 180/255, 250/255, 0.15) : (itemHoverAudio.containsMouse ? controlPanelWindow.bgColor3 : controlPanelWindow.bgColor2)
+                            color: modelData.isDefault ? Qt.rgba(137/255, 180/255, 250/255, 0.15) : (itemHoverSink.containsMouse ? controlPanelWindow.bgColor3 : controlPanelWindow.bgColor2)
                             border.width: modelData.isDefault ? 1 : 0
                             border.color: controlPanelWindow.accentColor
 
                             MouseArea {
-                                id: itemHoverAudio
+                                id: itemHoverSink
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
@@ -2677,7 +2901,78 @@ PanelWindow {
                                     }
                                 }
 
-                                // Connected checkmark badge
+                                Text {
+                                    visible: modelData.isDefault
+                                    text: "\uf00c" // check
+                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                    color: controlPanelWindow.accentColor
+                                }
+                            }
+                        }
+                    }
+
+                    // Sources List (Microphone Input)
+                    ListView {
+                        id: audioSourcesListView
+                        anchors.fill: parent
+                        clip: true
+                        spacing: 6
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: controlPanelWindow.audioTab === "input" ? controlPanelWindow.audioSources : []
+                        visible: controlPanelWindow.audioTab === "input" && controlPanelWindow.audioSources.length > 0
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: audioSourcesListView.width
+                            height: 48
+                            radius: 12
+                            color: modelData.isDefault ? Qt.rgba(137/255, 180/255, 250/255, 0.15) : (itemHoverSource.containsMouse ? controlPanelWindow.bgColor3 : controlPanelWindow.bgColor2)
+                            border.width: modelData.isDefault ? 1 : 0
+                            border.color: controlPanelWindow.accentColor
+
+                            MouseArea {
+                                id: itemHoverSource
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: controlPanelWindow.selectAudioSource(modelData)
+                            }
+
+                            RowLayout {
+                                anchors {
+                                    fill: parent
+                                    leftMargin: 12
+                                    rightMargin: 12
+                                }
+                                spacing: 10
+
+                                Text {
+                                    text: modelData.icon || "\uf130"
+                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 14 }
+                                    color: modelData.isDefault ? controlPanelWindow.accentColor : controlPanelWindow.fgColor
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: modelData.title
+                                        font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
+                                        color: "#FFFFFF"
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: modelData.subtitle
+                                        font { family: "Inter"; pixelSize: 10 }
+                                        color: modelData.isDefault ? controlPanelWindow.accentColor : controlPanelWindow.fgColor
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
                                 Text {
                                     visible: modelData.isDefault
                                     text: "\uf00c" // check
@@ -2692,11 +2987,11 @@ PanelWindow {
                     ColumnLayout {
                         anchors.centerIn: parent
                         spacing: 8
-                        visible: controlPanelWindow.audioSinks.length === 0
+                        visible: (controlPanelWindow.audioTab === "output" && controlPanelWindow.audioSinks.length === 0) || (controlPanelWindow.audioTab === "input" && controlPanelWindow.audioSources.length === 0)
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: controlPanelWindow.audioScanning ? "\uf021" : "\uf028"
+                            text: (controlPanelWindow.audioTab === "input" ? controlPanelWindow.audioSourcesScanning : controlPanelWindow.audioScanning) ? "\uf021" : (controlPanelWindow.audioTab === "input" ? "\uf130" : "\uf028")
                             font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 24 }
                             color: controlPanelWindow.fgColor
                             opacity: 0.6
@@ -2704,7 +2999,7 @@ PanelWindow {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: controlPanelWindow.audioScanning ? "Scanning audio devices..." : "No audio devices found"
+                            text: (controlPanelWindow.audioTab === "input" ? (controlPanelWindow.audioSourcesScanning ? "Scanning microphones..." : "No microphones found") : (controlPanelWindow.audioScanning ? "Scanning audio devices..." : "No audio devices found"))
                             font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
                             color: controlPanelWindow.fgColor
                         }
