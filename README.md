@@ -11,7 +11,7 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
 
 <br/>
 
-<img src="assets/desktop_preview.png" alt="Desktop Preview" width="90%"/>
+<img src="assets/desktop_preview.png" alt="Clean Desktop Preview" width="100%"/>
 
 </div>
 
@@ -19,28 +19,50 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
 
 ---
 
-## ✨ Features
+## ✨ Interface Showcase
 
 <table>
   <tr>
     <td width="50%" align="center">
       <b>🎛️ Main Control Panel</b><br/>
       <i>GNOME-style Quick Toggles & Trio of Pill Sliders</i><br/><br/>
-      <img src="assets/control_panel.png" width="340" />
+      <img src="assets/control_panel.png" width="350" />
     </td>
     <td width="50%" align="center">
       <b>⚙️ System Settings Panel</b><br/>
       <i>Unified 2×3 Grid & Sliding Power Profile</i><br/><br/>
-      <img src="assets/settings_panel.png" width="340" />
+      <img src="assets/settings_panel.png" width="350" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <b>🚀 Application Launcher</b><br/>
+      <i>Centered search & categorized quick launch</i><br/><br/>
+      <img src="assets/clean_launcher.png" width="480" />
+    </td>
+    <td width="50%" align="center">
+      <b>🖼️ Animated Wallpaper Selector</b><br/>
+      <i>Grid explorer, folder picker & cross-fade engine</i><br/><br/>
+      <img src="assets/clean_wallpapers.png" width="480" />
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <b>🎵 Full Media Player</b><br/>
+      <i>Interactive playback, waveform visualizer & album art glow</i><br/><br/>
+      <img src="assets/clean_media_player.png" width="70%" />
     </td>
   </tr>
 </table>
 
-### 🌟 Desktop Shell & UI
+---
+
+## 🌟 Desktop Shell & UI Features
+
 - **Top Bar (`Bar.qml`):** Floating curved capsule with active workspaces, live clock & calendar, dynamic music ticker, and interactive system status pill.
 - **Control Panel (`ControlPanel.qml`):**
   - Instantaneous 144Hz C++ PipeWire volume slider with audio sink switcher.
-  - Dedicated microphone volume & mute slider.
+  - Dedicated microphone volume & mute slider with real-time feedback.
   - Screen brightness slider with hardware backlight integration.
   - Wi-Fi, Bluetooth, Do Not Disturb, and Notification toggles.
 - **System Settings Panel:**
@@ -132,11 +154,11 @@ sudo pacman -S ttf-font-awesome ttf-inter ttf-jetbrains-mono-nerd
 │   ├── cava/               # Audio visualizer config & shaders
 │   ├── btop/               # System monitor theme
 │   └── fish/               # Fish shell configuration
-├── assets/                 # Screenshots and preview media
+├── assets/                 # High-resolution screenshots and showcase media
 ├── install.sh              # Automated interactive installer
 ├── uninstall.sh            # Backup restorer & uninstaller
 ├── .gitignore              # Clean ignore rules
-└── README.md               # Documentation
+└── README.md               # Documentation & keybinding guide
 ```
 
 ---
