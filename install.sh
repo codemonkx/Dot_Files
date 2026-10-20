@@ -93,6 +93,7 @@ DEPENDENCIES=(
     file-roller
     pavucontrol
     hyprpolkitagent
+    xdg-desktop-portal-hyprland
 )
 
 MISSING_PKGS=()

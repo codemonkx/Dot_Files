@@ -47,10 +47,15 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
     </td>
   </tr>
   <tr>
-    <td colspan="2" align="center">
+    <td width="50%" align="center">
       <b>🎵 Full Media Player</b><br/>
       <i>Interactive playback, waveform visualizer & album art glow</i><br/><br/>
-      <img src="assets/media_player_view.png" width="70%" />
+      <img src="assets/media_player_view.png" width="480" />
+    </td>
+    <td width="50%" align="center">
+      <b>📺 Native Screen Share Picker</b><br/>
+      <i>Catppuccin Sapphire picker for Vesktop, Discord & OBS</i><br/><br/>
+      <img src="assets/screenshare_picker_card.png" width="480" />
     </td>
   </tr>
 </table>
@@ -73,6 +78,11 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
   - **Touchpad:** macOS Natural Scrolling & Tap to Click controls.
   - **Power Profiles:** 3-Way sliding pill for Performance, Balanced, and Power Saver.
   - **Quick Shortcuts:** Instant terminal shortcuts to `hyprland.conf` and `quickshell`.
+- **Screen Share Picker (`ScreenSharePicker.qml` & `share_picker.sh`):**
+  - Replaces default Qt `hyprland-share-picker` with a native Catppuccin Sapphire Quickshell modal.
+  - Direct integration with `xdg-desktop-portal-hyprland` via `~/.config/hypr/xdph.conf`.
+  - 3-Way sliding pill for **Displays**, **Application Windows**, and **Region Selection** (`slurp`).
+  - Automatic app icon mapping, workspace indicators, and token remember support.
 - **Wallpapers (`WallpaperSelector.qml` & `WallpaperBackground.qml`):** Smooth cross-fade animation engine, category explorer, folder manager, and automatic synchronization with [`Wallpapers`](https://github.com/codemonkx/Wallpapers).
 - **Notifications (`NotificationPanel.qml` & `NotificationToasts.qml`):** Floating toast banners and collapsible history center.
 - **Lock Screen (`hyprlock.conf`):** Catppuccin Sapphire authentication card with blurred wallpaper backdrop.

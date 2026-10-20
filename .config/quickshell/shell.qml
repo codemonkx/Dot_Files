@@ -10,4 +10,5 @@ Scope {
 
     Rounded {}
     Overlay {}
+    ScreenSharePicker {}
 }
