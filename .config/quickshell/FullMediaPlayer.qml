@@ -17,6 +17,42 @@ PanelWindow {
 
     property var player: null
 
+    PwObjectTracker {
+        objects: [ Pipewire.defaultAudioSink ]
+    }
+
+    readonly property real systemVolume: (Pipewire.defaultAudioSink && Pipewire.defaultAudioSink.audio) ? Pipewire.defaultAudioSink.audio.volume : 0.5
+    readonly property bool isMuted: (Pipewire.defaultAudioSink && Pipewire.defaultAudioSink.audio) ? Pipewire.defaultAudioSink.audio.muted : false
+
+    function setVolume(ratio) {
+        let val = Math.max(0.0, Math.min(1.0, ratio));
+        if (Pipewire.defaultAudioSink && Pipewire.defaultAudioSink.audio) {
+            Pipewire.defaultAudioSink.audio.volume = val;
+            if (val > 0 && Pipewire.defaultAudioSink.audio.muted) {
+                Pipewire.defaultAudioSink.audio.muted = false;
+            }
+        }
+        Quickshell.execDetached(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", Math.round(val * 100) + "%"]);
+        if (val > 0) {
+            Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"]);
+        }
+        if (popupWindow.player && popupWindow.player.volumeSupported) {
+            try {
+                let entry = (popupWindow.player.desktopEntry || "").toLowerCase();
+                if (!entry.includes("brave") && !entry.includes("chrome") && !entry.includes("chromium") && !entry.includes("firefox")) {
+                    popupWindow.player.volume = val;
+                }
+            } catch(e) {}
+        }
+    }
+
+    function toggleMute() {
+        if (Pipewire.defaultAudioSink && Pipewire.defaultAudioSink.audio) {
+            Pipewire.defaultAudioSink.audio.muted = !Pipewire.defaultAudioSink.audio.muted;
+        }
+        Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
+    }
+
     property color bgColor: "#121213"
     property color bgColor2: "#1E1E1E"
     property color fgColor: "#CDD6F4"
@@ -377,71 +413,69 @@ PanelWindow {
 
                     // Volume Control in header
                     Row {
-                        spacing: 6
+                        spacing: 8
                         Layout.alignment: Qt.AlignVCenter
-
-                        readonly property real currentVolume: {
-                            if (popupWindow.player && popupWindow.player.volumeSupported) return popupWindow.player.volume
-                            return Pipewire.defaultAudioSink?.audio?.volume ?? 1.0
-                        }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: (parent.currentVolume <= 0) ? "\uf026" : ((parent.currentVolume < 0.5) ? "\uf027" : "\uf028")
-                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
-                            color: popupWindow.fgColor
+                            text: (popupWindow.isMuted || popupWindow.systemVolume <= 0) ? "\uf026" : ((popupWindow.systemVolume < 0.5) ? "\uf027" : "\uf028")
+                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 13 }
+                            color: popupWindow.isMuted ? "#66ffffff" : popupWindow.fgColor
 
                             MouseArea {
                                 anchors.fill: parent
+                                anchors.margins: -4
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (popupWindow.player && popupWindow.player.volumeSupported) {
-                                        popupWindow.player.volume = popupWindow.player.volume > 0 ? 0.0 : 0.8
-                                    } else if (Pipewire.defaultAudioSink?.audio) {
-                                        Pipewire.defaultAudioSink.audio.muted = !Pipewire.defaultAudioSink.audio.muted
-                                    }
-                                }
+                                onClicked: popupWindow.toggleMute()
                             }
                         }
 
-                        Rectangle {
-                            id: volTrack
-                            width: 54
-                            height: 4
-                            radius: 2
-                            color: "#2C2C30"
+                        Item {
+                            id: volSliderContainer
+                            width: 74
+                            height: 22
                             anchors.verticalCenter: parent.verticalCenter
 
                             Rectangle {
+                                id: volTrack
                                 anchors {
                                     left: parent.left
-                                    top: parent.top
-                                    bottom: parent.bottom
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
                                 }
-                                width: parent.width * Math.min(1.0, Math.max(0.0, parent.parent.currentVolume))
+                                height: 4
                                 radius: 2
-                                color: popupWindow.fgColor
+                                color: "#2C2C30"
+
+                                Rectangle {
+                                    anchors {
+                                        left: parent.left
+                                        top: parent.top
+                                        bottom: parent.bottom
+                                    }
+                                    width: parent.width * Math.min(1.0, Math.max(0.0, popupWindow.isMuted ? 0.0 : popupWindow.systemVolume))
+                                    radius: 2
+                                    color: popupWindow.isMuted ? "#66ffffff" : popupWindow.fgColor
+                                }
                             }
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
                                 onClicked: (mouse) => {
-                                    let val = Math.max(0.0, Math.min(1.0, mouse.x / width))
-                                    if (popupWindow.player && popupWindow.player.volumeSupported) {
-                                        popupWindow.player.volume = val
-                                    } else if (Pipewire.defaultAudioSink?.audio) {
-                                        Pipewire.defaultAudioSink.audio.volume = val
-                                    }
+                                    popupWindow.setVolume(mouse.x / width)
                                 }
                                 onPositionChanged: (mouse) => {
                                     if (pressed) {
-                                        let val = Math.max(0.0, Math.min(1.0, mouse.x / width))
-                                        if (popupWindow.player && popupWindow.player.volumeSupported) {
-                                            popupWindow.player.volume = val
-                                        } else if (Pipewire.defaultAudioSink?.audio) {
-                                            Pipewire.defaultAudioSink.audio.volume = val
-                                        }
+                                        popupWindow.setVolume(mouse.x / width)
+                                    }
+                                }
+                                onWheel: (wheel) => {
+                                    if (wheel.angleDelta.y > 0) {
+                                        popupWindow.setVolume(popupWindow.systemVolume + 0.05);
+                                    } else {
+                                        popupWindow.setVolume(popupWindow.systemVolume - 0.05);
                                     }
                                 }
                             }
