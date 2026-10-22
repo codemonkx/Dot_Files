@@ -34,6 +34,18 @@ PanelWindow {
     // ─── Notification Storage & Management ────────────────────
     property var notificationList: []
     readonly property int unreadCount: notificationList.length
+    property var expandedApps: []
+
+    function toggleAppExpanded(appName) {
+        let copy = expandedApps.slice()
+        let idx = copy.indexOf(appName)
+        if (idx >= 0) {
+            copy.splice(idx, 1)
+        } else {
+            copy.push(appName)
+        }
+        expandedApps = copy
+    }
 
     function addNotification(item) {
         let copy = notificationList.slice()
@@ -55,6 +67,20 @@ PanelWindow {
         notificationList = copy
     }
 
+    function removeAllByApp(appName) {
+        let copy = []
+        for (let i = 0; i < notificationList.length; i++) {
+            if (notificationList[i].appName === appName) {
+                if (notificationList[i].ref) {
+                    try { notificationList[i].ref.dismiss() } catch(e) {}
+                }
+            } else {
+                copy.push(notificationList[i])
+            }
+        }
+        notificationList = copy
+    }
+
     function clearAll() {
         for (let i = 0; i < notificationList.length; i++) {
             if (notificationList[i].ref) {
@@ -62,6 +88,35 @@ PanelWindow {
             }
         }
         notificationList = []
+        expandedApps = []
+    }
+
+    // Computed grouping by application name
+    readonly property var groupedNotifications: {
+        let list = notificationList
+        let groups = []
+        let groupMap = {}
+
+        for (let i = 0; i < list.length; i++) {
+            let item = list[i]
+            let name = item.appName && item.appName.trim() !== "" ? item.appName : "Notification"
+            if (!groupMap[name]) {
+                let g = {
+                    appName: name,
+                    appIcon: item.appIcon || "",
+                    items: [ item ],
+                    latestTime: item.timeStr
+                }
+                groupMap[name] = g
+                groups.push(g)
+            } else {
+                groupMap[name].items.push(item)
+                if (!groupMap[name].appIcon && item.appIcon) {
+                    groupMap[name].appIcon = item.appIcon
+                }
+            }
+        }
+        return groups
     }
 
     // ─── Quickshell Notification Server ───────────────────────
@@ -483,27 +538,34 @@ PanelWindow {
                         }
                     }
 
-                    // Notification List View
+                    // Notification List View (Grouped by App)
                     ListView {
                         id: notifListView
                         anchors.fill: parent
                         clip: true
                         spacing: 10
                         visible: notificationPanelWindow.unreadCount > 0
-                        model: notificationPanelWindow.notificationList
+                        model: notificationPanelWindow.groupedNotifications
 
                         delegate: Rectangle {
-                            id: notifItem
-                            readonly property var itemData: modelData
+                            id: groupCard
+                            readonly property var groupData: modelData
+                            readonly property bool isGroup: groupData.items.length > 1
+                            readonly property bool isExpanded: isGroup && (notificationPanelWindow.expandedApps.indexOf(groupData.appName) !== -1)
+
                             width: notifListView.width
-                            height: itemContentLayout.implicitHeight + 22
+                            height: cardContentLayout.implicitHeight + 22
                             radius: 14
                             color: notificationPanelWindow.bgColor2
                             border.width: 1
-                            border.color: "#2C2C30"
+                            border.color: isGroup ? "#383840" : "#2C2C30"
+
+                            Behavior on height {
+                                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                            }
 
                             ColumnLayout {
-                                id: itemContentLayout
+                                id: cardContentLayout
                                 anchors {
                                     left: parent.left
                                     right: parent.right
@@ -512,10 +574,11 @@ PanelWindow {
                                     rightMargin: 12
                                     topMargin: 10
                                 }
-                                spacing: 5
+                                spacing: 8
 
-                                // Top row: Icon, App Name, Time, Close
+                                // ─── CASE 1: SINGLE NOTIFICATION CARD ─────────────
                                 RowLayout {
+                                    visible: !groupCard.isGroup
                                     Layout.fillWidth: true
                                     spacing: 8
 
@@ -528,17 +591,17 @@ PanelWindow {
                                         clip: true
 
                                         Image {
-                                            id: delegateIconImg
+                                            id: singleIconImg
                                             anchors.fill: parent
                                             anchors.margins: 1
-                                            source: modelData.appIcon ? modelData.appIcon : ""
+                                            source: (!groupCard.isGroup && groupData.items[0].appIcon) ? groupData.items[0].appIcon : ""
                                             fillMode: Image.PreserveAspectFit
                                             visible: status === Image.Ready && source !== ""
                                         }
 
                                         Text {
                                             anchors.centerIn: parent
-                                            visible: !delegateIconImg.visible
+                                            visible: !singleIconImg.visible
                                             text: "\uf0f3" // bell
                                             font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
                                             color: notificationPanelWindow.accentColor
@@ -547,7 +610,7 @@ PanelWindow {
 
                                     // App Name
                                     Text {
-                                        text: modelData.appName
+                                        text: groupData.appName
                                         font { family: "Inter"; pixelSize: 11; weight: Font.Bold }
                                         color: notificationPanelWindow.accentColor
                                         elide: Text.ElideRight
@@ -556,7 +619,7 @@ PanelWindow {
 
                                     // Time
                                     Text {
-                                        text: modelData.timeStr
+                                        text: (!groupCard.isGroup && groupData.items.length > 0) ? groupData.items[0].timeStr : ""
                                         font { family: "Inter"; pixelSize: 10 }
                                         color: "#71717A"
                                     }
@@ -566,93 +629,447 @@ PanelWindow {
                                         width: 18
                                         height: 18
                                         radius: 9
-                                        color: delCloseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.5) : "transparent"
+                                        color: singleCloseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.5) : "transparent"
 
                                         Text {
                                             anchors.centerIn: parent
                                             text: "\uf00d" // times
                                             font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 9 }
-                                            color: delCloseArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
+                                            color: singleCloseArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
                                         }
 
                                         MouseArea {
-                                            id: delCloseArea
-                                            anchors.fill: parent
+                                            id: singleCloseArea
+                                             anchors.fill: parent
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: notificationPanelWindow.removeNotification(modelData.id)
+                                            onClicked: {
+                                                if (!groupCard.isGroup && groupData.items.length > 0) {
+                                                    notificationPanelWindow.removeNotification(groupData.items[0].id)
+                                                }
+                                            }
                                         }
                                     }
                                 }
 
-                                // Summary / Title
-                                Text {
+                                // Single Card Content
+                                ColumnLayout {
+                                    visible: !groupCard.isGroup
                                     Layout.fillWidth: true
-                                    text: modelData.summary
-                                    font { family: "Inter"; pixelSize: 13; weight: Font.Bold }
-                                    color: "#FFFFFF"
-                                    wrapMode: Text.Wrap
-                                    maximumLineCount: 2
-                                    elide: Text.ElideRight
-                                }
+                                    spacing: 5
 
-                                // Body
-                                Text {
-                                    Layout.fillWidth: true
-                                    visible: modelData.body !== ""
-                                    text: modelData.body
-                                    font { family: "Inter"; pixelSize: 12 }
-                                    color: notificationPanelWindow.fgColor
-                                    wrapMode: Text.Wrap
-                                    maximumLineCount: 4
-                                    elide: Text.ElideRight
-                                }
+                                    // Summary
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: (!groupCard.isGroup && groupData.items.length > 0) ? groupData.items[0].summary : ""
+                                        font { family: "Inter"; pixelSize: 13; weight: Font.Bold }
+                                        color: "#FFFFFF"
+                                        wrapMode: Text.Wrap
+                                        maximumLineCount: 2
+                                        elide: Text.ElideRight
+                                    }
 
-                                // Image Attachment
-                                Image {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 120
-                                    visible: modelData.image !== "" && status === Image.Ready
-                                    source: modelData.image
-                                    fillMode: Image.PreserveAspectCrop
-                                    clip: true
-                                }
+                                    // Body
+                                    Text {
+                                        Layout.fillWidth: true
+                                        visible: (!groupCard.isGroup && groupData.items.length > 0 && groupData.items[0].body !== "")
+                                        text: (!groupCard.isGroup && groupData.items.length > 0) ? groupData.items[0].body : ""
+                                        font { family: "Inter"; pixelSize: 12 }
+                                        color: notificationPanelWindow.fgColor
+                                        wrapMode: Text.Wrap
+                                        maximumLineCount: 4
+                                        elide: Text.ElideRight
+                                    }
 
-                                // Actions
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 6
-                                    visible: modelData.actions && modelData.actions.length > 0
+                                    // Image
+                                    Image {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 120
+                                        visible: (!groupCard.isGroup && groupData.items.length > 0 && groupData.items[0].image !== "" && status === Image.Ready)
+                                        source: (!groupCard.isGroup && groupData.items.length > 0) ? groupData.items[0].image : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        clip: true
+                                    }
 
-                                    Repeater {
-                                        model: modelData.actions
+                                    // Actions
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+                                        visible: (!groupCard.isGroup && groupData.items.length > 0 && groupData.items[0].actions && groupData.items[0].actions.length > 0)
 
-                                        delegate: Rectangle {
-                                            Layout.fillWidth: true
-                                            Layout.preferredHeight: 26
-                                            radius: 13
-                                            color: actArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.4) : notificationPanelWindow.bgColor3
-                                            border.color: "#2C2C30"
-                                            border.width: 1
+                                        Repeater {
+                                            model: (!groupCard.isGroup && groupData.items.length > 0) ? groupData.items[0].actions : []
 
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: modelData.text
-                                                font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
-                                                color: actArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
-                                                elide: Text.ElideRight
-                                            }
+                                            delegate: Rectangle {
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: 26
+                                                radius: 13
+                                                color: sActArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.4) : notificationPanelWindow.bgColor3
+                                                border.color: "#2C2C30"
+                                                border.width: 1
 
-                                            MouseArea {
-                                                id: actArea
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    modelData.invoke()
-                                                    notificationPanelWindow.removeNotification(notifItem.itemData.id)
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.text
+                                                    font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                                    color: sActArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                MouseArea {
+                                                    id: sActArea
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        modelData.invoke()
+                                                        notificationPanelWindow.removeNotification(groupData.items[0].id)
+                                                    }
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+
+                                // ─── CASE 2: GROUPED NOTIFICATIONS ───────────────
+                                // Group Header
+                                RowLayout {
+                                    visible: groupCard.isGroup
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    // Group App Icon
+                                    Rectangle {
+                                        width: 22
+                                        height: 22
+                                        radius: 6
+                                        color: notificationPanelWindow.bgColor3
+                                        clip: true
+
+                                        Image {
+                                            id: groupIconImg
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            source: groupData.appIcon ? groupData.appIcon : ""
+                                            fillMode: Image.PreserveAspectFit
+                                            visible: status === Image.Ready && source !== ""
+                                        }
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            visible: !groupIconImg.visible
+                                            text: "\uf0f3" // bell
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                            color: notificationPanelWindow.accentColor
+                                        }
+                                    }
+
+                                    // App Name
+                                    Text {
+                                        text: groupData.appName
+                                        font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
+                                        color: "#FFFFFF"
+                                    }
+
+                                    // Count Badge
+                                    Rectangle {
+                                        implicitWidth: groupCountText.implicitWidth + 12
+                                        implicitHeight: 18
+                                        radius: 9
+                                        color: Qt.rgba(137/255, 180/255, 250/255, 0.16)
+                                        border.width: 1
+                                        border.color: notificationPanelWindow.accentColor
+
+                                        Text {
+                                            id: groupCountText
+                                            anchors.centerIn: parent
+                                            text: groupData.items.length
+                                            font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                            color: notificationPanelWindow.accentColor
+                                        }
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    // Time
+                                    Text {
+                                        text: groupData.latestTime
+                                        font { family: "Inter"; pixelSize: 10 }
+                                        color: "#71717A"
+                                    }
+
+                                    // Clear All for this Group Button
+                                    Rectangle {
+                                        width: 20
+                                        height: 20
+                                        radius: 10
+                                        color: grpCloseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.5) : "transparent"
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf00d" // times
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
+                                            color: grpCloseArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
+                                        }
+
+                                        MouseArea {
+                                            id: grpCloseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: notificationPanelWindow.removeAllByApp(groupData.appName)
+                                        }
+                                    }
+                                }
+
+                                // Collapsed View: Latest Item + Expand Button
+                                ColumnLayout {
+                                    visible: groupCard.isGroup && !groupCard.isExpanded
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    // Latest Notification Content
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: groupData.items.length > 0 ? groupData.items[0].summary : ""
+                                            font { family: "Inter"; pixelSize: 13; weight: Font.Bold }
+                                            color: "#FFFFFF"
+                                            wrapMode: Text.Wrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            visible: groupData.items.length > 0 && groupData.items[0].body !== ""
+                                            text: groupData.items.length > 0 ? groupData.items[0].body : ""
+                                            font { family: "Inter"; pixelSize: 12 }
+                                            color: notificationPanelWindow.fgColor
+                                            wrapMode: Text.Wrap
+                                            maximumLineCount: 2
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    // Sleek Expand Footer Bar
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 28
+                                        radius: 8
+                                        color: expMouseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.4) : notificationPanelWindow.bgColor3
+                                        border.color: "#35353C"
+                                        border.width: 1
+
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                                        Row {
+                                            anchors.centerIn: parent
+                                            spacing: 6
+
+                                            Text {
+                                                text: "\uf107" // angle-down
+                                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                                color: notificationPanelWindow.accentColor
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+
+                                            Text {
+                                                text: "+ " + (groupData.items.length - 1) + " more from " + groupData.appName
+                                                font { family: "Inter"; pixelSize: 11; weight: Font.Medium }
+                                                color: notificationPanelWindow.accentColor
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: expMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: notificationPanelWindow.toggleAppExpanded(groupData.appName)
+                                        }
+                                    }
+                                }
+
+                                // Expanded View: List of all notifications from this group
+                                ColumnLayout {
+                                    visible: groupCard.isGroup && groupCard.isExpanded
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Repeater {
+                                        model: groupCard.isExpanded ? groupData.items : []
+
+                                        delegate: Rectangle {
+                                            id: nestedCard
+                                            readonly property var nestedItem: modelData
+                                            Layout.fillWidth: true
+                                            implicitHeight: nestedContent.implicitHeight + 16
+                                            radius: 10
+                                            color: notificationPanelWindow.bgColor3
+                                            border.color: "#2C2C32"
+                                            border.width: 1
+
+                                            ColumnLayout {
+                                                id: nestedContent
+                                                anchors {
+                                                    left: parent.left
+                                                    right: parent.right
+                                                    top: parent.top
+                                                    leftMargin: 10
+                                                    rightMargin: 10
+                                                    topMargin: 8
+                                                }
+                                                spacing: 4
+
+                                                // Sub Header: Time & Close
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+
+                                                    Text {
+                                                        text: nestedItem.timeStr
+                                                        font { family: "Inter"; pixelSize: 10 }
+                                                        color: "#71717A"
+                                                    }
+
+                                                    Item { Layout.fillWidth: true }
+
+                                                    Rectangle {
+                                                        width: 16
+                                                        height: 16
+                                                        radius: 8
+                                                        color: nestCloseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor2, 1.5) : "transparent"
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: "\uf00d"
+                                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 8 }
+                                                            color: nestCloseArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
+                                                        }
+
+                                                        MouseArea {
+                                                            id: nestCloseArea
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: notificationPanelWindow.removeNotification(nestedItem.id)
+                                                        }
+                                                    }
+                                                }
+
+                                                // Summary
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: nestedItem.summary
+                                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
+                                                    color: "#FFFFFF"
+                                                    wrapMode: Text.Wrap
+                                                    maximumLineCount: 2
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                // Body
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    visible: nestedItem.body !== ""
+                                                    text: nestedItem.body
+                                                    font { family: "Inter"; pixelSize: 11 }
+                                                    color: notificationPanelWindow.fgColor
+                                                    wrapMode: Text.Wrap
+                                                    maximumLineCount: 3
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                // Image
+                                                Image {
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredHeight: 100
+                                                    visible: nestedItem.image !== "" && status === Image.Ready
+                                                    source: nestedItem.image
+                                                    fillMode: Image.PreserveAspectCrop
+                                                    clip: true
+                                                }
+
+                                                // Actions
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 6
+                                                    visible: nestedItem.actions && nestedItem.actions.length > 0
+
+                                                    Repeater {
+                                                        model: nestedItem.actions || []
+
+                                                        delegate: Rectangle {
+                                                            Layout.fillWidth: true
+                                                            Layout.preferredHeight: 24
+                                                            radius: 12
+                                                            color: nActArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor2, 1.4) : notificationPanelWindow.bgColor2
+                                                            border.color: "#35353C"
+                                                            border.width: 1
+
+                                                            Text {
+                                                                anchors.centerIn: parent
+                                                                text: modelData.text
+                                                                font { family: "Inter"; pixelSize: 10; weight: Font.DemiBold }
+                                                                color: nActArea.containsMouse ? "#FFFFFF" : notificationPanelWindow.fgColor
+                                                                elide: Text.ElideRight
+                                                            }
+
+                                                            MouseArea {
+                                                                id: nActArea
+                                                                anchors.fill: parent
+                                                                hoverEnabled: true
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: {
+                                                                    modelData.invoke()
+                                                                    notificationPanelWindow.removeNotification(nestedItem.id)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Collapse Bar
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 26
+                                        radius: 8
+                                        color: collMouseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.4) : notificationPanelWindow.bgColor3
+
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                                        Row {
+                                            anchors.centerIn: parent
+                                            spacing: 6
+
+                                            Text {
+                                                text: "\uf106" // angle-up
+                                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
+                                                color: "#71717A"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+
+                                            Text {
+                                                text: "Collapse"
+                                                font { family: "Inter"; pixelSize: 11; weight: Font.Medium }
+                                                color: "#71717A"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: collMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: notificationPanelWindow.toggleAppExpanded(groupData.appName)
                                         }
                                     }
                                 }

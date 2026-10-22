@@ -1225,8 +1225,11 @@ Scope {
             root.showWallpaperSelector = false
             root.showNotificationPanel = true
         }
-        function close() {
+        function close(): void {
             root.showNotificationPanel = false
+        }
+        function toggleGroup(app: string): void {
+            notifPanelPopup.toggleAppExpanded(app)
         }
     }
 
