@@ -136,22 +136,6 @@ PanelWindow {
                             control2Y: 8.836
                         }
                     }
-
-                    ShapePath {
-                        strokeWidth: 1
-                        strokeColor: "#2C2C30"
-                        fillColor: "transparent"
-                        startX: 0
-                        startY: 16
-                        PathCubic {
-                            x: 16
-                            y: 0
-                            control1X: 8.836
-                            control1Y: 16
-                            control2X: 16
-                            control2Y: 8.836
-                        }
-                    }
                 }
 
                 // Right curved fillet joining the card smoothly into the top bar
@@ -181,22 +165,6 @@ PanelWindow {
                             control2Y: 8.836
                         }
                     }
-
-                    ShapePath {
-                        strokeWidth: 1
-                        strokeColor: "#2C2C30"
-                        fillColor: "transparent"
-                        startX: 16
-                        startY: 16
-                        PathCubic {
-                            x: 0
-                            y: 0
-                            control1X: 7.164
-                            control1Y: 16
-                            control2X: 0
-                            control2Y: 8.836
-                        }
-                    }
                 }
 
                 Rectangle {
@@ -209,8 +177,8 @@ PanelWindow {
                     topRightRadius: 0
                     bottomLeftRadius: 18
                     bottomRightRadius: 18
-                    border.width: 1
-                    border.color: "#2C2C30"
+                    border.width: 0
+                    border.color: "transparent"
 
                     layer.enabled: true
                     layer.effect: MultiEffect {

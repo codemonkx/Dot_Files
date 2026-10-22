@@ -283,22 +283,6 @@ PanelWindow {
                     control2Y: 8.836
                 }
             }
-
-            ShapePath {
-                strokeWidth: 1
-                strokeColor: "#2C2C30"
-                fillColor: "transparent"
-                startX: 0
-                startY: 16
-                PathCubic {
-                    x: 16
-                    y: 0
-                    control1X: 8.836
-                    control1Y: 16
-                    control2X: 16
-                    control2Y: 8.836
-                }
-            }
         }
 
         // Right curved fillet joining the card smoothly into the top bar
@@ -319,22 +303,6 @@ PanelWindow {
                 startY: 0
                 PathLine { x: 0; y: 16 }
                 PathLine { x: 16; y: 16 }
-                PathCubic {
-                    x: 0
-                    y: 0
-                    control1X: 7.164
-                    control1Y: 16
-                    control2X: 0
-                    control2Y: 8.836
-                }
-            }
-
-            ShapePath {
-                strokeWidth: 1
-                strokeColor: "#2C2C30"
-                fillColor: "transparent"
-                startX: 16
-                startY: 16
                 PathCubic {
                     x: 0
                     y: 0
@@ -557,8 +525,8 @@ PanelWindow {
                             height: cardContentLayout.implicitHeight + 22
                             radius: 14
                             color: notificationPanelWindow.bgColor2
-                            border.width: 1
-                            border.color: isGroup ? "#383840" : "#2C2C30"
+                            border.width: 0
+                            border.color: "transparent"
 
                             Behavior on height {
                                 NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
@@ -861,8 +829,8 @@ PanelWindow {
                                         implicitHeight: 28
                                         radius: 8
                                         color: expMouseArea.containsMouse ? Qt.lighter(notificationPanelWindow.bgColor3, 1.4) : notificationPanelWindow.bgColor3
-                                        border.color: "#35353C"
-                                        border.width: 1
+                                        border.width: 0
+                                        border.color: "transparent"
 
                                         Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -911,8 +879,8 @@ PanelWindow {
                                             implicitHeight: nestedContent.implicitHeight + 16
                                             radius: 10
                                             color: notificationPanelWindow.bgColor3
-                                            border.color: "#2C2C32"
-                                            border.width: 1
+                                            border.width: 0
+                                            border.color: "transparent"
 
                                             ColumnLayout {
                                                 id: nestedContent
