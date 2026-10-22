@@ -23,12 +23,25 @@ Scope {
     property color accentColor: "#89B4FA"
     property color fgColor: "#CDD6F4"
     property bool initialized: false
+    property bool isPanelOpen: false
+
+    onIsPanelOpenChanged: {
+        if (isPanelOpen) {
+            root.hideOsd();
+        }
+    }
+
+    Timer {
+        id: startupTimer
+        interval: 1500
+        running: true
+        onTriggered: {
+            root.initialized = true;
+        }
+    }
 
     Component.onCompleted: {
         brightProc.running = true;
-        Qt.callLater(() => {
-            root.initialized = true;
-        });
     }
 
     // Process to query current brightness
@@ -104,19 +117,19 @@ Scope {
     }
 
     function triggerMicOsd() {
-        if (!initialized) return;
+        if (!initialized || isPanelOpen) return;
         root.osdMode = "mic";
         showOsdCommon();
     }
 
     function triggerVolumeOsd() {
-        if (!initialized) return;
+        if (!initialized || isPanelOpen) return;
         root.osdMode = "volume";
         showOsdCommon();
     }
 
     function showBrightnessOsd() {
-        if (!initialized) return;
+        if (!initialized || isPanelOpen) return;
         root.osdMode = "brightness";
         showOsdCommon();
     }

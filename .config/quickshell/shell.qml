@@ -6,9 +6,13 @@ import QtQuick
 Scope {
     WallpaperBackground {}
 
-    Bar {}
+    Bar {
+        id: mainBar
+    }
 
     Rounded {}
-    Overlay {}
+    Overlay {
+        isPanelOpen: mainBar.showControlPanel || mainBar.showFullPlayer || mainBar.showNotificationPanel || mainBar.showCalendar || mainBar.showAppLauncher || mainBar.showPowerMenu || mainBar.showWallpaperSelector
+    }
     ScreenSharePicker {}
 }
