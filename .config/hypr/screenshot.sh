@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # ~/.config/hypr/screenshot.sh
 # Interactive & CLI screenshot engine for Hyprland + Quickshell
-# Supports Selection, Screen, and Window modes with clipboard copy, sound, notification, and flash effect.
+# Supports Selection, Screen, and Window modes with persistent clipboard copy, audio feedback, and notification preview.
 
-set -e
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+export LANG="${LANG:-en_US.UTF-8}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}"
 
 MODE="${1:-selection}"
 INCLUDE_CURSOR="${2:-0}"
@@ -80,8 +83,8 @@ if [ ! -f "$FILEPATH" ] || [ ! -s "$FILEPATH" ]; then
     exit 1
 fi
 
-# Copy image to Wayland clipboard
-wl-copy --type image/png < "$FILEPATH" 2>/dev/null || true
+# Copy image to Wayland clipboard in background using nohup so wl-copy stays alive indefinitely
+nohup wl-copy --type image/png < "$FILEPATH" >/dev/null 2>&1 &
 
 # Play shutter audio feedback in background
 SHUTTER_SOUND="/usr/share/sounds/freedesktop/stereo/screen-capture.oga"

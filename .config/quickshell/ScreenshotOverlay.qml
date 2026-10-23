@@ -95,14 +95,12 @@ PanelWindow {
         interval: 90
         repeat: false
         onTriggered: {
-            captureProc.command = [
+            Quickshell.execDetached([
                 "/home/madara/.config/hypr/screenshot.sh",
                 screenshotWindow.activeMode,
                 screenshotWindow.includeCursor ? "1" : "0",
                 "0"
-            ]
-            captureProc.running = false
-            captureProc.running = true
+            ]);
         }
     }
 
@@ -117,11 +115,6 @@ PanelWindow {
                 executeCapture()
             }
         }
-    }
-
-    Process {
-        id: captureProc
-        running: false
     }
 
     // ─── Global Shortcut & IPC Handler ──────────────────────────
@@ -205,7 +198,8 @@ PanelWindow {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: screenshotWindow.close()
+            cursorShape: Qt.CrossCursor
+            onClicked: screenshotWindow.startCapture()
         }
     }
 
