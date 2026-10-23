@@ -15,4 +15,5 @@ Scope {
         isPanelOpen: mainBar.showControlPanel || mainBar.showFullPlayer || mainBar.showNotificationPanel || mainBar.showCalendar || mainBar.showAppLauncher || mainBar.showPowerMenu || mainBar.showWallpaperSelector
     }
     ScreenSharePicker {}
+    ScreenshotOverlay {}
 }
