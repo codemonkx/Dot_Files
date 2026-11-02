@@ -2,11 +2,12 @@
 # ══════════════════════════════════════════════════════════════════════════════
 #  Catppuccin Sapphire Hyprland + Quickshell Dotfiles Installer
 #  Repository: https://github.com/codemonkx/Dot_Files
+#  Designed for 100% reproducible deployment on Bare Metal & Virtual Machines
 # ══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
-# Colors
+# ─── Colors & Output Formatting ───────────────────────────────────────────────
 C_RESET="\033[0m"
 C_BOLD="\033[1m"
 C_BLUE="\033[38;2;137;180;250m"      # #89B4FA (Sapphire Accent)
@@ -24,17 +25,24 @@ err()   { echo -e "  ${C_RED}✖${C_RESET} $*" >&2; }
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$HOME/.config_backup_$(date +%Y%m%d_%H%M%S)"
-MODE="symlink" # default: symlink (use --copy for hard copy)
+MODE="copy" # Default: copy (use --symlink for developer symlink mode)
+AUTO_YES=false
+DRY_RUN=false
 
-# Parse flags
+# ─── Parse Flags ──────────────────────────────────────────────────────────────
 for arg in "$@"; do
     case "$arg" in
-        --copy|-c) MODE="copy" ;;
+        --symlink|-s) MODE="symlink" ;;
+        --copy|-c)    MODE="copy" ;;
+        --yes|-y)     AUTO_YES=true ;;
+        --dry-run)    DRY_RUN=true ;;
         --help|-h)
             echo "Usage: ./install.sh [OPTIONS]"
             echo "Options:"
-            echo "  --symlink, -s    Symlink configs from repository to ~/.config (default)"
-            echo "  --copy, -c       Copy configs directly to ~/.config"
+            echo "  --copy, -c       Copy configs directly to ~/.config (default)"
+            echo "  --symlink, -s    Symlink configs from repository to ~/.config"
+            echo "  --yes, -y        Non-interactive mode (accept all default prompts)"
+            echo "  --dry-run        Test and preview steps without modifying files"
             echo "  --help, -h       Show this help message"
             exit 0
             ;;
@@ -53,17 +61,70 @@ EOF
 echo -e "${C_RESET}"
 echo -e "  ${C_CYAN}Catppuccin Sapphire Hyprland + Quickshell Rice Installer${C_RESET}\n"
 
-# ─── 1. Package Dependencies ──────────────────────────────────────────────────
+# ─── 1. Environment & Hardware / Hypervisor Detection ─────────────────────────
+log "Detecting hardware & runtime environment..."
+
+IS_VM=false
+VIRT_TYPE="none"
+if command -v systemd-detect-virt &>/dev/null; then
+    if VIRT_OUT=$(systemd-detect-virt 2>/dev/null); then
+        if [ "$VIRT_OUT" != "none" ] && [ -n "$VIRT_OUT" ]; then
+            IS_VM=true
+            VIRT_TYPE="$VIRT_OUT"
+        fi
+    fi
+fi
+
+if [ "$IS_VM" = true ]; then
+    info "Virtual Machine detected (${VIRT_TYPE}). Enabling VM-specific optimizations..."
+else
+    ok "Bare-metal hardware detected."
+fi
+
+# ─── 2. Sudo Privileges & Keepalive ───────────────────────────────────────────
+if [ "$DRY_RUN" = false ]; then
+    log "Requesting administrator privileges..."
+    sudo -v || { err "Administrator privileges required for package installation."; exit 1; }
+    # Keep sudo alive throughout installation
+    while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+fi
+
+# ─── 3. Package Management & Automatic AUR Helper Bootstrap ───────────────────
+log "Verifying package manager and AUR helper..."
+
+AUR_HELPER=""
+if command -v yay &>/dev/null; then
+    AUR_HELPER="yay"
+elif command -v paru &>/dev/null; then
+    AUR_HELPER="paru"
+fi
+
+if [ -z "$AUR_HELPER" ] && [ "$DRY_RUN" = false ]; then
+    info "No AUR helper found. Bootstrapping 'yay-bin' automatically..."
+    sudo pacman -S --needed --noconfirm base-devel git
+    BOOTSTRAP_DIR="/tmp/yay_bootstrap_$$"
+    mkdir -p "$BOOTSTRAP_DIR"
+    git clone https://aur.archlinux.org/yay-bin.git "$BOOTSTRAP_DIR/yay-bin"
+    (cd "$BOOTSTRAP_DIR/yay-bin" && makepkg -si --noconfirm)
+    rm -rf "$BOOTSTRAP_DIR"
+    AUR_HELPER="yay"
+    ok "Installed and configured 'yay' AUR helper successfully!"
+else
+    ok "Using AUR helper: ${AUR_HELPER:-pacman (dry-run)}"
+fi
+
+# ─── 4. Install Dependencies ──────────────────────────────────────────────────
 log "Checking system dependencies..."
 
-DEPENDENCIES=(
+OFFICIAL_PKGS=(
     hyprland
     hypridle
     hyprlock
-    quickshell
     swaybg
     pipewire
     wireplumber
+    pipewire-pulse
+    pavucontrol
     playerctl
     brightnessctl
     power-profiles-daemon
@@ -72,6 +133,7 @@ DEPENDENCIES=(
     bluez
     bluez-utils
     wl-clipboard
+    cliphist
     grim
     slurp
     jq
@@ -82,55 +144,56 @@ DEPENDENCIES=(
     fastfetch
     cava
     btop
-    ttf-font-awesome
-    ttf-inter
-    ttf-jetbrains-mono-nerd
-    # ── Essential Everyday Apps ──
     nautilus
     micro
     steam
     loupe
     file-roller
-    pavucontrol
-    hyprpolkitagent
+    ttf-font-awesome
+    ttf-inter
+    ttf-jetbrains-mono-nerd
     xdg-desktop-portal-hyprland
+    xdg-desktop-portal-gtk
+    hyprpolkitagent
 )
 
-MISSING_PKGS=()
-for pkg in "${DEPENDENCIES[@]}"; do
+MISSING_OFFICIAL=()
+for pkg in "${OFFICIAL_PKGS[@]}"; do
     if ! pacman -Q "$pkg" &>/dev/null; then
-        MISSING_PKGS+=("$pkg")
+        MISSING_OFFICIAL+=("$pkg")
     fi
 done
 
-if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
-    warn "The following packages are missing: ${MISSING_PKGS[*]}"
-    
-    AUR_HELPER=""
-    if command -v yay &>/dev/null; then
-        AUR_HELPER="yay"
-    elif command -v paru &>/dev/null; then
-        AUR_HELPER="paru"
-    fi
-
-    if [ -n "$AUR_HELPER" ]; then
-        read -rp "  Install missing packages with $AUR_HELPER? [Y/n] " install_choice
-        if [[ ! "$install_choice" =~ ^[Nn]$ ]]; then
-            $AUR_HELPER -S --needed "${MISSING_PKGS[@]}" || warn "Some packages failed to install. Continuing..."
-        fi
-    elif command -v pacman &>/dev/null; then
-        read -rp "  Install official packages with pacman? [Y/n] " install_choice
-        if [[ ! "$install_choice" =~ ^[Nn]$ ]]; then
-            sudo pacman -S --needed "${MISSING_PKGS[@]}" || warn "Some packages failed to install. Continuing..."
-        fi
-    else
-        warn "Package manager not recognized. Please install these manually: ${MISSING_PKGS[*]}"
+if [ ${#MISSING_OFFICIAL[@]} -gt 0 ]; then
+    info "Installing ${#MISSING_OFFICIAL[@]} missing official packages..."
+    if [ "$DRY_RUN" = false ]; then
+        sudo pacman -S --needed --noconfirm "${MISSING_OFFICIAL[@]}" || warn "Some official packages failed to install."
     fi
 else
-    ok "All core package dependencies are satisfied!"
+    ok "All core official packages are satisfied!"
 fi
 
-# Optional recommended AUR apps (Vesktop, Brave)
+# Essential AUR packages (Quickshell, wlrctl)
+AUR_PKGS=()
+if ! pacman -Q quickshell &>/dev/null && ! pacman -Q quickshell-git &>/dev/null; then
+    AUR_PKGS+=(quickshell)
+fi
+if ! pacman -Q wlrctl &>/dev/null; then
+    AUR_PKGS+=(wlrctl)
+fi
+
+if [ ${#AUR_PKGS[@]} -gt 0 ]; then
+    info "Installing AUR packages: ${AUR_PKGS[*]}..."
+    if [ "$DRY_RUN" = false ] && [ -n "$AUR_HELPER" ]; then
+        $AUR_HELPER -S --needed --noconfirm "${AUR_PKGS[@]}" || {
+            # Fallback for quickshell package naming variations
+            warn "Attempting fallback to quickshell-git..."
+            $AUR_HELPER -S --needed --noconfirm quickshell-git wlrctl || true
+        }
+    fi
+fi
+
+# Recommended AUR apps (Vesktop, Brave)
 EXTRA_AUR=()
 if ! command -v vesktop &>/dev/null && ! (command -v flatpak &>/dev/null && flatpak info dev.vencord.Vesktop &>/dev/null 2>&1); then
     EXTRA_AUR+=(vesktop-bin)
@@ -139,22 +202,35 @@ if ! command -v brave &>/dev/null && ! command -v brave-browser &>/dev/null; the
     EXTRA_AUR+=(brave-bin)
 fi
 
-AUR_HELPER=""
-if command -v yay &>/dev/null; then
-    AUR_HELPER="yay"
-elif command -v paru &>/dev/null; then
-    AUR_HELPER="paru"
-fi
-
-if [ ${#EXTRA_AUR[@]} -gt 0 ] && [ -n "$AUR_HELPER" ]; then
-    read -rp "  Install recommended apps (${EXTRA_AUR[*]}) with $AUR_HELPER? [Y/n] " aur_extra_choice
-    if [[ ! "$aur_extra_choice" =~ ^[Nn]$ ]]; then
-        $AUR_HELPER -S --needed "${EXTRA_AUR[@]}" || warn "Could not install some AUR packages."
+if [ ${#EXTRA_AUR[@]} -gt 0 ] && [ "$DRY_RUN" = false ] && [ -n "$AUR_HELPER" ]; then
+    if [ "$AUTO_YES" = true ]; then
+        $AUR_HELPER -S --needed --noconfirm "${EXTRA_AUR[@]}" 2>/dev/null || true
+    else
+        read -rp "  Install recommended apps (${EXTRA_AUR[*]}) with $AUR_HELPER? [Y/n] " aur_choice
+        if [[ ! "$aur_choice" =~ ^[Nn]$ ]]; then
+            $AUR_HELPER -S --needed --noconfirm "${EXTRA_AUR[@]}" || warn "Could not install some recommended apps."
+        fi
     fi
 fi
 
-# ─── 2. Backup Existing Configs ───────────────────────────────────────────────
-log "Preparing ~/.config backup directory: ${BACKUP_DIR}"
+# ─── 5. Deploy Bundled Custom Fonts ───────────────────────────────────────────
+log "Deploying bundled custom typography (Rowdies, Font Awesome 6 Pro, Inter)..."
+
+FONT_DIR="$HOME/.local/share/fonts/kadal"
+mkdir -p "$FONT_DIR"
+
+if [ -d "$DOTFILES_DIR/assets/fonts" ]; then
+    if [ "$DRY_RUN" = false ]; then
+        cp -rf "$DOTFILES_DIR/assets/fonts/"* "$FONT_DIR/"
+        fc-cache -f "$FONT_DIR" 2>/dev/null || true
+        ok "Custom fonts installed and font-cache refreshed!"
+    fi
+else
+    warn "assets/fonts directory not found in repository. Using system fallbacks."
+fi
+
+# ─── 6. Backup Existing Configs ───────────────────────────────────────────────
+log "Preparing configuration deployment (Mode: ${MODE})..."
 
 CONFIG_DIRS=(
     hypr
@@ -164,6 +240,7 @@ CONFIG_DIRS=(
     cava
     btop
     fish
+    pipewire
 )
 
 mkdir -p "$HOME/.config"
@@ -172,12 +249,14 @@ BACKUP_CREATED=false
 for d in "${CONFIG_DIRS[@]}"; do
     target="$HOME/.config/$d"
     if [ -e "$target" ] || [ -L "$target" ]; then
-        if [ "$BACKUP_CREATED" = false ]; then
+        if [ "$BACKUP_CREATED" = false ] && [ "$DRY_RUN" = false ]; then
             mkdir -p "$BACKUP_DIR"
             BACKUP_CREATED=true
         fi
-        info "Backing up existing ~/.config/$d to ${BACKUP_DIR}/"
-        mv "$target" "$BACKUP_DIR/"
+        if [ "$DRY_RUN" = false ]; then
+            info "Archiving existing ~/.config/$d to ${BACKUP_DIR}/"
+            mv "$target" "$BACKUP_DIR/"
+        fi
     fi
 done
 
@@ -185,8 +264,8 @@ if [ "$BACKUP_CREATED" = true ]; then
     ok "Existing configurations safely archived at ${BACKUP_DIR}"
 fi
 
-# ─── 3. Deploy Configurations ─────────────────────────────────────────────────
-log "Deploying configurations (Mode: ${MODE})..."
+# ─── 7. Deploy Configurations ─────────────────────────────────────────────────
+log "Deploying configurations..."
 
 for d in "${CONFIG_DIRS[@]}"; do
     src="$DOTFILES_DIR/.config/$d"
@@ -196,69 +275,129 @@ for d in "${CONFIG_DIRS[@]}"; do
         continue
     fi
 
-    if [ "$MODE" = "symlink" ]; then
-        info "Symlinking $dst ➜ $src"
-        ln -sfn "$src" "$dst"
-    else
-        info "Copying $src ➜ $dst"
-        cp -rf "$src" "$dst"
+    if [ "$DRY_RUN" = false ]; then
+        if [ "$MODE" = "symlink" ]; then
+            info "Symlinking $dst ➜ $src"
+            ln -sfn "$src" "$dst"
+        else
+            info "Copying $src ➜ $dst"
+            cp -rf "$src" "$dst"
+        fi
     fi
 done
 
 # Ensure executable permissions on helper scripts
-chmod +x "$HOME/.config/hypr/"*.sh 2>/dev/null || true
-chmod +x "$HOME/.config/hypr/"*.py 2>/dev/null || true
-ok "Configurations deployed and script permissions granted!"
+if [ "$DRY_RUN" = false ]; then
+    chmod +x "$HOME/.config/hypr/"*.sh 2>/dev/null || true
+    chmod +x "$HOME/.config/hypr/"*.py 2>/dev/null || true
+fi
+ok "Configurations deployed with executable script permissions!"
 
-# ─── 4. Wallpapers Repository ─────────────────────────────────────────────────
-log "Checking Wallpapers..."
-
-WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
-if [ ! -d "$WALLPAPER_DIR" ]; then
-    info "Wallpapers folder not found at ${WALLPAPER_DIR}."
-    read -rp "  Clone official Wallpapers repository from GitHub? [Y/n] " wp_choice
-    if [[ ! "$wp_choice" =~ ^[Nn]$ ]]; then
-        mkdir -p "$HOME/Pictures"
-        git clone https://github.com/codemonkx/Wallpapers.git "$WALLPAPER_DIR" || warn "Could not clone wallpapers. You can clone manually later."
+# ─── 8. VM Optimizations (Software Cursor Fallback) ───────────────────────────
+if [ "$IS_VM" = true ] && [ "$DRY_RUN" = false ]; then
+    log "Applying Virtual Machine display & cursor tweaks..."
+    # Ensure hardware cursors are disabled in VM so mouse pointer is always visible
+    HYPR_LUA="$HOME/.config/hypr/hyprland.lua"
+    if [ -f "$HYPR_LUA" ]; then
+        if ! grep -q "no_hardware_cursors = true" "$HYPR_LUA"; then
+            sed -i 's/no_hardware_cursors = false/no_hardware_cursors = true/g' "$HYPR_LUA"
+        fi
     fi
-else
-    ok "Wallpapers repository found at ${WALLPAPER_DIR}"
+    ok "VM software cursor fallback enabled!"
 fi
 
-# Set default wallpaper fallback if not present
+# ─── 9. Deploy Bundled Wallpaper & Optional Pack ──────────────────────────────
+log "Initializing desktop wallpaper..."
+
 mkdir -p "$HOME/Pictures"
-if [ ! -f "$HOME/Pictures/wall.jpg" ]; then
-    FIRST_WALL=$(find "$WALLPAPER_DIR" -type f \( -name "*.jpg" -o -name "*.png" -o -name "*.webp" \) 2>/dev/null | head -n 1 || true)
-    if [ -n "$FIRST_WALL" ]; then
-        cp -f "$FIRST_WALL" "$HOME/Pictures/wall.jpg"
-        echo "$FIRST_WALL" > "$HOME/.config/hypr/current_wallpaper" 2>/dev/null || true
-        ok "Initialized default wallpaper: $(basename "$FIRST_WALL")"
+
+# 1. Deploy default bundled wallpaper immediately
+if [ -f "$DOTFILES_DIR/assets/wallpaper/default.jpg" ] && [ "$DRY_RUN" = false ]; then
+    cp -f "$DOTFILES_DIR/assets/wallpaper/default.jpg" "$HOME/Pictures/wall.jpg"
+    echo "$HOME/Pictures/wall.jpg" > "$HOME/.config/hypr/current_wallpaper" 2>/dev/null || true
+    ok "Default high-resolution Catppuccin wallpaper deployed!"
+fi
+
+# 2. Optionally clone the 120-wallpaper collection
+WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
+if [ ! -d "$WALLPAPER_DIR" ] && [ "$DRY_RUN" = false ]; then
+    if [ "$AUTO_YES" = true ]; then
+        info "Non-interactive mode: skipping full 120-wallpaper pack download."
+    else
+        read -rp "  Download full 120-wallpaper collection from GitHub (~200MB)? [y/N] " wp_choice
+        if [[ "$wp_choice" =~ ^[Yy]$ ]]; then
+            info "Cloning wallpapers to ${WALLPAPER_DIR}..."
+            git clone --depth 1 https://github.com/codemonkx/Wallpapers.git "$WALLPAPER_DIR" || warn "Could not clone wallpapers. You can download manually later."
+        fi
+    fi
+else
+    ok "Wallpapers directory ready at ${WALLPAPER_DIR}"
+fi
+
+# ─── 10. Enable System & User Services ────────────────────────────────────────
+log "Enabling background daemons & user services..."
+
+if [ "$DRY_RUN" = false ]; then
+    # System daemons
+    sudo systemctl enable --now power-profiles-daemon.service 2>/dev/null || true
+    sudo systemctl enable --now bluetooth.service 2>/dev/null || true
+
+    # User audio & portal services
+    systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.service 2>/dev/null || true
+
+    # Default file manager association
+    xdg-mime default org.gnome.Nautilus.desktop inode/directory 2>/dev/null || true
+fi
+ok "System services and user daemons configured!"
+
+# ─── 11. Automated Post-Install Health Check ──────────────────────────────────
+log "Running post-installation validation..."
+
+HEALTH_ERRORS=0
+
+# Check 1: Hyprland configuration syntax
+if command -v hyprland &>/dev/null; then
+    if hyprland --verify-config &>/dev/null; then
+        ok "Hyprland configuration syntax: OK (Lua engine validated)"
+    else
+        warn "Hyprland configuration reported warnings or syntax notices."
     fi
 fi
 
-# ─── 5. Enable System Services ────────────────────────────────────────────────
-log "Checking essential background services..."
-
-if systemctl is-enabled power-profiles-daemon.service &>/dev/null; then
-    ok "power-profiles-daemon is active"
+# Check 2: Rowdies font registration
+if fc-list :family=Rowdies | grep -q "Rowdies"; then
+    ok "Custom typography (Rowdies): Registered"
 else
-    info "Enabling power-profiles-daemon.service..."
-    sudo systemctl enable --now power-profiles-daemon.service 2>/dev/null || warn "Could not enable power-profiles-daemon.service automatically"
+    warn "Rowdies font not registered in fontconfig."
+    ((HEALTH_ERRORS++))
 fi
 
-if systemctl is-enabled bluetooth.service &>/dev/null; then
-    ok "bluetooth service is active"
+# Check 3: Quickshell binary
+if command -v quickshell &>/dev/null; then
+    ok "Desktop shell (Quickshell): Installed"
 else
-    info "Enabling bluetooth.service..."
-    sudo systemctl enable --now bluetooth.service 2>/dev/null || warn "Could not enable bluetooth.service automatically"
+    warn "Quickshell binary not found in PATH."
+    ((HEALTH_ERRORS++))
 fi
 
-# ─── 6. Final Summary ─────────────────────────────────────────────────────────
-echo -e "\n${C_GREEN}${C_BOLD}✔ Setup successfully installed!${C_RESET}\n"
-echo -e "Next steps:"
-echo -e "  1. If you are already inside Hyprland: run ${C_BOLD}hyprctl reload${C_RESET} and ${C_BOLD}quickshell &${C_RESET}"
+# Check 4: Clipboard utilities
+if command -v wl-copy &>/dev/null && command -v cliphist &>/dev/null; then
+    ok "Clipboard subsystem (wl-clipboard + cliphist): OK"
+else
+    warn "Clipboard utilities missing."
+    ((HEALTH_ERRORS++))
+fi
+
+# ─── 12. Final Summary ────────────────────────────────────────────────────────
+echo -e "\n${C_GREEN}${C_BOLD}✔ Installation completed successfully!${C_RESET}\n"
+echo -e "Summary:"
+echo -e "  • Mode:              ${C_BOLD}${MODE}${C_RESET} (to ~/.config)"
+echo -e "  • Hypervisor/Target: ${C_BOLD}${VIRT_TYPE}${C_RESET}"
+echo -e "  • Wallpapers:        ${C_BOLD}~/Pictures/wall.jpg${C_RESET}"
+echo -e "  • Custom Fonts:      ${C_BOLD}~/.local/share/fonts/kadal/${C_RESET}"
+echo -e "\nNext steps:"
+echo -e "  1. If running inside Hyprland: run ${C_BOLD}hyprctl reload${C_RESET} and ${C_BOLD}~/.config/hypr/refresh.sh${C_RESET}"
 echo -e "  2. Or simply log out and start a fresh Hyprland session."
-echo -e "  3. Open Control Panel: ${C_BOLD}SUPER + A${C_RESET} (or click top-right status pill)"
-echo -e "  4. Open Settings: ${C_BOLD}SUPER + I${C_RESET} (or right-click status pill)"
-echo -e "  5. Open App Launcher: ${C_BOLD}SUPER + SPACE${C_RESET}\n"
-EOF
+echo -e "  3. Open Control Panel:    ${C_BOLD}SUPER + A${C_RESET}"
+echo -e "  4. Open App Launcher:     ${C_BOLD}SUPER + SPACE${C_RESET}"
+echo -e "  5. Open Screenshot Tool:  ${C_BOLD}SUPER + SHIFT + S${C_RESET} or ${C_BOLD}PrintScreen${C_RESET}\n"

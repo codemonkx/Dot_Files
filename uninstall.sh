@@ -5,7 +5,16 @@
 
 set -euo pipefail
 
-CONFIG_DIRS=(hypr quickshell ghostty fastfetch cava btop fish)
+CONFIG_DIRS=(
+    hypr
+    quickshell
+    ghostty
+    fastfetch
+    cava
+    btop
+    fish
+    pipewire
+)
 
 echo ":: Dotfiles Uninstall / Restore Utility"
 
@@ -18,7 +27,7 @@ if [ -n "$LATEST_BACKUP" ] && [ -d "$LATEST_BACKUP" ]; then
         for d in "${CONFIG_DIRS[@]}"; do
             rm -rf "$HOME/.config/$d"
             if [ -d "$LATEST_BACKUP/$d" ]; then
-                echo "Restoring $d..."
+                echo "Restoring ~/.config/$d..."
                 mv "$LATEST_BACKUP/$d" "$HOME/.config/$d"
             fi
         done
@@ -27,13 +36,13 @@ if [ -n "$LATEST_BACKUP" ] && [ -d "$LATEST_BACKUP" ]; then
     fi
 fi
 
-read -rp "Remove dotfiles symlinks from ~/.config? [y/N] " remove_choice
+read -rp "Remove dotfiles configurations from ~/.config? [y/N] " remove_choice
 if [[ "$remove_choice" =~ ^[Yy]$ ]]; then
     for d in "${CONFIG_DIRS[@]}"; do
-        if [ -L "$HOME/.config/$d" ]; then
-            echo "Removing symlink ~/.config/$d"
-            rm -f "$HOME/.config/$d"
+        if [ -e "$HOME/.config/$d" ] || [ -L "$HOME/.config/$d" ]; then
+            echo "Removing ~/.config/$d"
+            rm -rf "$HOME/.config/$d"
         fi
     done
-    echo "✔ Dotfiles symlinks removed."
+    echo "✔ Dotfiles configurations removed."
 fi

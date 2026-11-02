@@ -99,12 +99,20 @@ cd ~/.dotfiles
 ./install.sh
 ```
 
-### What the installer does:
-1. Verifies and installs all required dependencies (`hyprland`, `quickshell`, `pipewire`, `wireplumber`, `brightnessctl`, `fonts`, etc.).
-2. Creates a timestamped backup of your existing configs in `~/.config_backup_<timestamp>/`.
-3. Symlinks all configuration directories (`hypr`, `quickshell`, `ghostty`, `cava`, `fastfetch`, `btop`, `fish`) into `~/.config/`.
-4. Clones the official [`Wallpapers`](https://github.com/codemonkx/Wallpapers) repository into `~/Pictures/Wallpapers`.
-5. Enables background system services (`power-profiles-daemon`, `bluetooth`).
+### Installation Options:
+- `./install.sh` (default): Performs clean, standalone copy of all configurations to `~/.config/`.
+- `./install.sh --symlink`: Symlinks configuration directories from the repository to `~/.config/` (ideal for active git development).
+- `./install.sh --yes`: Non-interactive deployment (great for automated script testing & VM spins).
+- `./install.sh --dry-run`: Preview actions and check system compatibility without altering files.
+
+### What the installer handles automatically:
+1. **Hardware & VM Detection:** Detects whether you are running on bare metal or inside a Virtual Machine (QEMU, KVM, VirtualBox, VMware) and auto-configures display scaling and software cursors.
+2. **Zero-Touch AUR Bootstrapping:** Automatically installs `yay-bin` if no AUR helper is present on the system.
+3. **Typography & Font Cache:** Deploys bundled custom fonts (`Rowdies-Bold`, `Font Awesome 6 Pro`, `Inter`, `PixelifySans`) directly into `~/.local/share/fonts/kadal` and runs `fc-cache -f`.
+4. **Configuration Deployment & Backup:** Creates a timestamped backup of existing configs in `~/.config_backup_<timestamp>/` before deploying.
+5. **Desktop & Wallpaper Initialization:** Bundles and initializes a default high-resolution wallpaper (`~/Pictures/wall.jpg`) for immediate zero-touch first boot, with an optional prompt to clone the full 120-wallpaper pack.
+6. **Background Services & Audio:** Enables `pipewire`, `wireplumber`, `pipewire-pulse`, `power-profiles-daemon`, and `bluetooth`.
+7. **Post-Install Validation:** Automatically runs `hyprland --verify-config`, tests font availability, and confirms clipboard daemons.
 
 ---
 
