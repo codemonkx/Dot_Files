@@ -1,102 +1,146 @@
 import Quickshell
+import Quickshell.Wayland
 import QtQuick
 import QtQuick.Shapes
 
-// qmllint disable uncreatable-type
+// macOS-style curved screen corners for Quickshell
 Scope {
-    id: border
-    property real borderWidth: 2
-    property real cornerRadius: 25
-    property color borderColor: "#111418"
+    id: screenCorners
+    property real cornerRadius: 24
+    property color cornerColor: "#000000"
 
+    // ─── 1. Top-Left Corner ──────────────────────────────────────
     PanelWindow {
-        id: top
+        id: topLeftCorner
+        WlrLayershell.layer: WlrLayer.Overlay
+        exclusionMode: ExclusionMode.Ignore
+        implicitHeight: screenCorners.cornerRadius
+        implicitWidth: screenCorners.cornerRadius
+        color: "transparent"
         anchors {
             top: true
             left: true
-            right: true
         }
-        implicitHeight: border.borderWidth
-        color: border.borderColor
+
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeWidth: 0
+                fillColor: screenCorners.cornerColor
+                startX: 0
+                startY: screenCorners.cornerRadius
+                PathArc {
+                    x: screenCorners.cornerRadius
+                    y: 0
+                    radiusX: screenCorners.cornerRadius
+                    radiusY: screenCorners.cornerRadius
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: 0; y: 0 }
+                PathLine { x: 0; y: screenCorners.cornerRadius }
+            }
+        }
     }
 
-   
+    // ─── 2. Top-Right Corner ─────────────────────────────────────
+    PanelWindow {
+        id: topRightCorner
+        WlrLayershell.layer: WlrLayer.Overlay
+        exclusionMode: ExclusionMode.Ignore
+        implicitHeight: screenCorners.cornerRadius
+        implicitWidth: screenCorners.cornerRadius
+        color: "transparent"
+        anchors {
+            top: true
+            right: true
+        }
 
- 
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeWidth: 0
+                fillColor: screenCorners.cornerColor
+                startX: 0
+                startY: 0
+                PathArc {
+                    x: screenCorners.cornerRadius
+                    y: screenCorners.cornerRadius
+                    radiusX: screenCorners.cornerRadius
+                    radiusY: screenCorners.cornerRadius
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: screenCorners.cornerRadius; y: 0 }
+                PathLine { x: 0; y: 0 }
+            }
+        }
+    }
 
-
-
+    // ─── 3. Bottom-Left Corner ───────────────────────────────────
     PanelWindow {
         id: bottomLeftCorner
-        implicitHeight: border.cornerRadius
-        implicitWidth: border.cornerRadius
+        WlrLayershell.layer: WlrLayer.Overlay
+        exclusionMode: ExclusionMode.Ignore
+        implicitHeight: screenCorners.cornerRadius
+        implicitWidth: screenCorners.cornerRadius
         color: "transparent"
         anchors {
             bottom: true
             left: true
         }
-        Rectangle {
-            Shape {
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    strokeWidth: 0
-                    fillColor: border.borderColor
-                    startX: border.cornerRadius
-                    startY: border.cornerRadius
-                    PathArc {
-                        x: 0
-                        y: 0
-                        radiusX: border.cornerRadius
-                        radiusY: border.cornerRadius
-                        direction: PathArc.Clockwise
-                    }
-                    PathLine {
-                        x: 0
-                        y: border.cornerRadius
-                    }
-                    PathLine {
-                        x: border.cornerRadius
-                        y: border.cornerRadius
-                    }
+
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeWidth: 0
+                fillColor: screenCorners.cornerColor
+                startX: screenCorners.cornerRadius
+                startY: screenCorners.cornerRadius
+                PathArc {
+                    x: 0
+                    y: 0
+                    radiusX: screenCorners.cornerRadius
+                    radiusY: screenCorners.cornerRadius
+                    direction: PathArc.Clockwise
                 }
+                PathLine { x: 0; y: screenCorners.cornerRadius }
+                PathLine { x: screenCorners.cornerRadius; y: screenCorners.cornerRadius }
             }
         }
     }
+
+    // ─── 4. Bottom-Right Corner ──────────────────────────────────
     PanelWindow {
         id: bottomRightCorner
-        implicitHeight: border.cornerRadius
-        implicitWidth: border.cornerRadius
+        WlrLayershell.layer: WlrLayer.Overlay
+        exclusionMode: ExclusionMode.Ignore
+        implicitHeight: screenCorners.cornerRadius
+        implicitWidth: screenCorners.cornerRadius
         color: "transparent"
         anchors {
             bottom: true
             right: true
         }
-        Rectangle {
-            Shape {
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    strokeWidth: 0
-                    fillColor: border.borderColor
-                    startX: 0
-                    startY: border.cornerRadius
-                    PathLine {
-                        x: border.cornerRadius
-                        y: border.cornerRadius
-                    }
-                    PathLine {
-                        x: border.cornerRadius
-                        y: 0
-                    }
-                    PathArc {
-                        x: 0
-                        y: border.cornerRadius
-                        radiusX: border.cornerRadius
-                        radiusY: border.cornerRadius
-                        direction: PathArc.Clockwise
-                    }
+
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeWidth: 0
+                fillColor: screenCorners.cornerColor
+                startX: 0
+                startY: screenCorners.cornerRadius
+                PathArc {
+                    x: screenCorners.cornerRadius
+                    y: 0
+                    radiusX: screenCorners.cornerRadius
+                    radiusY: screenCorners.cornerRadius
+                    direction: PathArc.Counterclockwise
                 }
+                PathLine { x: screenCorners.cornerRadius; y: screenCorners.cornerRadius }
+                PathLine { x: 0; y: screenCorners.cornerRadius }
             }
         }
     }
