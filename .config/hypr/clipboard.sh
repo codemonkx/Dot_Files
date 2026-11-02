@@ -247,6 +247,85 @@ for line in raw_list.strip().split('\n'):
 "
         ;;
 
+    get-pos)
+        python3 -W ignore -c "
+import subprocess, json
+
+def get_best_pos():
+    caret_x = None
+    caret_y = None
+    try:
+        raw_win = subprocess.check_output(['hyprctl', '-j', 'activewindow'], stderr=subprocess.DEVNULL)
+        win = json.loads(raw_win)
+        pid = win.get('pid')
+        if pid:
+            import gi
+            gi.require_version('Atspi', '2.0')
+            from gi.repository import Atspi
+            desktop = Atspi.get_desktop(0)
+            for i in range(desktop.get_child_count()):
+                app = desktop.get_child_at_index(i)
+                if app and app.get_process_id() == pid:
+                    def find_caret(acc, depth=0):
+                        if depth > 4: return None
+                        try:
+                            txt = acc.get_text()
+                            if txt:
+                                off = txt.get_caret_offset()
+                                if off >= 0:
+                                    r = txt.get_character_extents(off, Atspi.CoordType.SCREEN)
+                                    if r.width > 0 or r.height > 0 or r.x > 0 or r.y > 0:
+                                        return r.x, r.y
+                        except: pass
+                        try:
+                            for j in range(acc.get_child_count()):
+                                c = acc.get_child_at_index(j)
+                                if not c: continue
+                                if c.get_state_set().contains(Atspi.StateType.FOCUSED):
+                                    res = find_caret(c, depth + 1)
+                                    if res: return res
+                        except: pass
+                        return None
+                    pos = find_caret(app)
+                    if pos: caret_x, caret_y = pos
+                    break
+    except: pass
+
+    if caret_x is not None and caret_y is not None and (caret_x > 0 or caret_y > 0):
+        return int(caret_x), int(caret_y)
+
+    try:
+        out = subprocess.check_output(['hyprctl', 'cursorpos'], stderr=subprocess.DEVNULL, text=True)
+        p = out.strip().split(',')
+        return int(p[0].strip()), int(p[1].strip())
+    except: pass
+    return 960, 540
+
+x, y = get_best_pos()
+print(f'{x},{y}')
+"
+        ;;
+
+    toggle)
+        POS=$("$0" get-pos 2>/dev/null)
+        IFS=',' read -r PX PY <<< "$POS"
+        if [ -n "$PX" ] && [ -n "$PY" ]; then
+            quickshell ipc --any-display call clipboard toggleAt "$PX" "$PY" >/dev/null 2>&1 || true
+        else
+            quickshell ipc --any-display call clipboard toggle >/dev/null 2>&1 || true
+        fi
+        ;;
+
+    open-emoji)
+        POS=$("$0" get-pos 2>/dev/null)
+        IFS=',' read -r PX PY <<< "$POS"
+        if [ -n "$PX" ] && [ -n "$PY" ]; then
+            quickshell ipc --any-display call clipboard openEmojiAt "$PX" "$PY" >/dev/null 2>&1 || true
+        else
+            quickshell ipc --any-display call clipboard openEmoji >/dev/null 2>&1 || true
+        fi
+        ;;
+
     wipe-all)
         "$CLIPHIST" wipe
         rm -f "$PIN_FILE" 2>/dev/null || true
@@ -254,7 +333,7 @@ for line in raw_list.strip().split('\n'):
         ;;
 
     *)
-        echo "Usage: $0 {daemon|list [query] [limit]|toggle-pin <id>|paste-text <text>|copy <id>|paste <id>|delete <id>|wipe|wipe-all}"
+        echo "Usage: $0 {daemon|list [query] [limit]|toggle|open-emoji|get-pos|toggle-pin <id>|paste-text <text>|copy <id>|paste <id>|delete <id>|wipe|wipe-all}"
         exit 1
         ;;
 esac

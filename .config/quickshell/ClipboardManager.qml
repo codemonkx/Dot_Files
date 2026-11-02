@@ -59,6 +59,58 @@ PanelWindow {
     property int selectedIndex: 0
     property bool confirmWipe: false
 
+    // Windows Caret / Cursor Positioning
+    property int cardTargetX: Math.round((clipboardWindow.width > 0 ? clipboardWindow.width : 1920) - 420) / 2
+    property int cardTargetY: Math.round((clipboardWindow.height > 0 ? clipboardWindow.height : 1080) - 620) / 2
+
+    function updatePosition(targetX, targetY) {
+        let sw = (clipboardWindow.screen && clipboardWindow.screen.width > 0) ? clipboardWindow.screen.width : (clipboardWindow.width > 200 ? clipboardWindow.width : 1920)
+        let sh = (clipboardWindow.screen && clipboardWindow.screen.height > 0) ? clipboardWindow.screen.height : (clipboardWindow.height > 200 ? clipboardWindow.height : 1080)
+        let cw = 420
+        let ch = 620
+
+        let x = targetX - 20
+        let y = targetY + 12
+
+        // If overflowing bottom, flip above typing cursor / caret
+        if (y + ch > sh - 16) {
+            y = targetY - ch - 12
+        }
+
+        // Clamp Y inside screen
+        if (y + ch > sh - 16) y = sh - ch - 16
+        if (y < 16) y = 16
+
+        // Clamp X inside screen
+        if (x + cw > sw - 16) {
+            x = sw - cw - 16
+        }
+        if (x < 16) x = 16
+
+        cardTargetX = Math.round(x)
+        cardTargetY = Math.round(y)
+    }
+
+    Process {
+        id: posProc
+        running: false
+        command: ["/home/madara/.config/hypr/clipboard.sh", "get-pos"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let parts = text.trim().split(",")
+                    if (parts.length === 2) {
+                        let px = parseInt(parts[0])
+                        let py = parseInt(parts[1])
+                        if (!isNaN(px) && !isNaN(py)) {
+                            clipboardWindow.updatePosition(px, py)
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+    }
+
     readonly property var filteredItems: {
         if (!rawItems || rawItems.length === 0) return []
         if (!searchText || searchText.trim() === "") return rawItems
@@ -191,10 +243,33 @@ PanelWindow {
 
     IpcHandler {
         target: "clipboard"
-        function toggle() { clipboardWindow.toggle() }
+        function toggle() { 
+            if (clipboardWindow.isOpen) {
+                clipboardWindow.close()
+            } else {
+                posProc.running = false
+                posProc.running = true
+                clipboardWindow.open()
+            }
+        }
+        function toggleAt(targetX: int, targetY: int) {
+            if (clipboardWindow.isOpen) {
+                clipboardWindow.close()
+            } else {
+                clipboardWindow.updatePosition(targetX, targetY)
+                clipboardWindow.open()
+            }
+        }
         function open() { 
             clipboardWindow.activeTab = "clipboard"
+            posProc.running = false
+            posProc.running = true
             clipboardWindow.open() 
+        }
+        function openAt(targetX: int, targetY: int) {
+            clipboardWindow.activeTab = "clipboard"
+            clipboardWindow.updatePosition(targetX, targetY)
+            clipboardWindow.open()
         }
         function close() { clipboardWindow.close() }
         function refresh() { clipboardWindow.refresh() }
@@ -203,10 +278,24 @@ PanelWindow {
         function wipe() { clipboardWindow.wipeUnpinned() }
         function openEmoji() {
             clipboardWindow.activeTab = "emoji"
+            posProc.running = false
+            posProc.running = true
+            clipboardWindow.open()
+        }
+        function openEmojiAt(targetX: int, targetY: int) {
+            clipboardWindow.activeTab = "emoji"
+            clipboardWindow.updatePosition(targetX, targetY)
             clipboardWindow.open()
         }
         function openTab(tab: string) {
             clipboardWindow.activeTab = tab
+            posProc.running = false
+            posProc.running = true
+            clipboardWindow.open()
+        }
+        function openTabAt(tab: string, targetX: int, targetY: int) {
+            clipboardWindow.activeTab = tab
+            clipboardWindow.updatePosition(targetX, targetY)
             clipboardWindow.open()
         }
     }
@@ -246,7 +335,8 @@ PanelWindow {
     // ─── Windows 11 Fluent Flyout Card ──────────────────────────
     Rectangle {
         id: panelCard
-        anchors.centerIn: parent
+        x: clipboardWindow.cardTargetX
+        y: clipboardWindow.cardTargetY
         width: 420
         height: 620
         radius: 12
