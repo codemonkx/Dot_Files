@@ -122,7 +122,8 @@ cd ~/.dotfiles
 | :--- | :--- |
 | <kbd>SUPER</kbd> + <kbd>SPACE</kbd> | Open App Launcher |
 | <kbd>SUPER</kbd> + <kbd>A</kbd> | Toggle Main Control Panel |
-| <kbd>SUPER</kbd> + <kbd>V</kbd> | Toggle Native Clipboard Manager |
+| <kbd>SUPER</kbd> + <kbd>V</kbd> | Toggle Windows-style Clipboard History |
+| <kbd>SUPER</kbd> + <kbd>.</kbd> | Open Emoji & Symbol Expression Flyout |
 | <kbd>SUPER</kbd> + <kbd>I</kbd> | Toggle System Settings Panel |
 | <kbd>SUPER</kbd> + <kbd>W</kbd> | Open Wallpaper Selector |
 | <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | GNOME-style Interactive Screenshot Tool |

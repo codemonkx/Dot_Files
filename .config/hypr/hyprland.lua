@@ -209,6 +209,7 @@ hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind(mainMod .. " + escape", hl.dsp.exec_cmd("qs ipc call power toggle"))
 hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"))
 hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"))
+hl.bind(mainMod .. " + period", hl.dsp.exec_cmd("qs ipc call clipboard openEmoji"))
 
 -- GNOME-style interactive screenshot overlay
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd("qs ipc call screenshot toggle"))

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # ~/.config/hypr/clipboard.sh
-# Cliphist & Wayland clipboard helper for Quickshell Clipboard Manager
+# Cliphist & Wayland clipboard helper for Windows-style Quickshell Clipboard Manager
 
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
 CLIPHIST="$(which cliphist 2>/dev/null || echo "$HOME/.local/bin/cliphist")"
+PIN_FILE="$HOME/.config/hypr/pinned_clips.json"
 
 ACTION="${1:-list}"
 ARG2="${2:-}"
@@ -24,14 +25,23 @@ case "$ACTION" in
 
     list)
         QUERY="${ARG2:-}"
-        LIMIT="${ARG3:-75}"
+        LIMIT="${ARG3:-80}"
         python3 -c "
 import subprocess, os, re, json, sys
 
 query = '''${QUERY}'''.strip().lower()
-limit = int('''${LIMIT}''' or '75')
+limit = int('''${LIMIT}''' or '80')
 thumb_dir = '${THUMB_DIR}'
 cliphist_bin = '${CLIPHIST}'
+pin_file = '${PIN_FILE}'
+
+pinned_ids = set()
+if os.path.exists(pin_file):
+    try:
+        with open(pin_file, 'r') as f:
+            pinned_ids = set(json.load(f))
+    except Exception:
+        pass
 
 try:
     raw_list = subprocess.check_output([cliphist_bin, 'list'], stderr=subprocess.DEVNULL, text=True)
@@ -47,12 +57,13 @@ for line in lines:
     if len(parts) < 2:
         continue
     cid, content = parts[0].strip(), parts[1].strip()
+    is_pinned = cid in pinned_ids
 
     # Check if binary image data
     img_match = re.match(r'\[\[ binary data ([\d\.]+ \w+) (\w+) (\d+x\d+) \]\]', content)
     if img_match:
         size_str, fmt, dims = img_match.groups()
-        if query and query not in 'image' and query not in fmt and query not in dims:
+        if query and query not in 'image' and query not in fmt.lower() and query not in dims:
             continue
         thumb_path = os.path.join(thumb_dir, f'{cid}.{fmt}')
         if not os.path.exists(thumb_path):
@@ -69,6 +80,7 @@ for line in lines:
             'size': size_str,
             'dims': dims,
             'preview': f'Image ({dims}, {size_str})',
+            'pinned': is_pinned,
             'thumb': thumb_path
         })
     else:
@@ -84,8 +96,8 @@ for line in lines:
 
         # Clean preview text
         clean_preview = ' '.join(content.split())
-        if len(clean_preview) > 180:
-            clean_preview = clean_preview[:180] + '...'
+        if len(clean_preview) > 220:
+            clean_preview = clean_preview[:220] + '...'
 
         items.append({
             'id': cid,
@@ -94,15 +106,53 @@ for line in lines:
             'size': f'{len(content)} chars',
             'dims': '',
             'preview': clean_preview,
-            'full_text': content[:1000],
+            'full_text': content[:1500],
+            'pinned': is_pinned,
             'thumb': ''
         })
 
-    if len(items) >= limit:
+    if len(items) >= limit * 2:
         break
 
-print(json.dumps(items))
+# Sort pinned items first, maintaining chronological order
+items.sort(key=lambda x: 0 if x.get('pinned') else 1)
+print(json.dumps(items[:limit]))
 "
+        ;;
+
+    toggle-pin)
+        ID="$ARG2"
+        if [ -n "$ID" ]; then
+            python3 -c "
+import json, os
+pin_file = '${PIN_FILE}'
+pinned = []
+if os.path.exists(pin_file):
+    try:
+        with open(pin_file, 'r') as f:
+            pinned = json.load(f)
+    except Exception:
+        pass
+
+if '$ID' in pinned:
+    pinned.remove('$ID')
+else:
+    pinned.append('$ID')
+
+with open(pin_file, 'w') as f:
+    json.dump(pinned, f)
+"
+        fi
+        ;;
+
+    paste-text)
+        TEXT="$ARG2"
+        if [ -n "$TEXT" ]; then
+            echo -n "$TEXT" | wl-copy
+            quickshell ipc --any-display call clipboard close >/dev/null 2>&1 || true
+            sleep 0.08
+            hyprctl dispatch sendshortcut "CTRL,V,activewindow" >/dev/null 2>&1 || true
+        fi
         ;;
 
     copy)
@@ -150,16 +200,61 @@ print(json.dumps(items))
         if [ -n "$LINE" ]; then
             echo "$LINE" | "$CLIPHIST" delete
         fi
+        # Remove from pinned file if present
+        python3 -c "
+import json, os
+pin_file = '${PIN_FILE}'
+if os.path.exists(pin_file):
+    try:
+        with open(pin_file, 'r') as f: pinned = json.load(f)
+        if '$ID' in pinned:
+            pinned.remove('$ID')
+            with open(pin_file, 'w') as f: json.dump(pinned, f)
+    except: pass
+" 2>/dev/null || true
         rm -f "${THUMB_DIR}/${ID}".* 2>/dev/null || true
         ;;
 
     wipe)
+        # Windows-style Clear All: Deletes unpinned items, keeps pinned items safe!
+        python3 -c "
+import subprocess, json, os
+
+pin_file = '${PIN_FILE}'
+cliphist_bin = '${CLIPHIST}'
+pinned_ids = set()
+
+if os.path.exists(pin_file):
+    try:
+        with open(pin_file, 'r') as f:
+            pinned_ids = set(json.load(f))
+    except Exception:
+        pass
+
+try:
+    raw_list = subprocess.check_output([cliphist_bin, 'list'], stderr=subprocess.DEVNULL, text=True)
+except Exception:
+    raw_list = ''
+
+for line in raw_list.strip().split('\n'):
+    if not line.strip(): continue
+    parts = line.split('\t', 1)
+    if not parts: continue
+    cid = parts[0].strip()
+    if cid not in pinned_ids:
+        p = subprocess.Popen([cliphist_bin, 'delete'], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        p.communicate(input=line.encode())
+"
+        ;;
+
+    wipe-all)
         "$CLIPHIST" wipe
+        rm -f "$PIN_FILE" 2>/dev/null || true
         rm -rf "${THUMB_DIR:?}"/* 2>/dev/null || true
         ;;
 
     *)
-        echo "Usage: $0 {daemon|list [query] [limit]|copy <id>|paste <id>|delete <id>|wipe}"
+        echo "Usage: $0 {daemon|list [query] [limit]|toggle-pin <id>|paste-text <text>|copy <id>|paste <id>|delete <id>|wipe|wipe-all}"
         exit 1
         ;;
 esac

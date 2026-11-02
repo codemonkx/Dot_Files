@@ -31,63 +31,69 @@ PanelWindow {
         isOpen = false
     }
 
-    // Theme properties matching Catppuccin Sapphire Desktop Shell
-    property color bgColor: "#121213"
-    property color bgColor2: "#181822"
-    property color bgColor3: "#22222E"
-    property color cardBg: "#1E1E28"
-    property color cardHover: "#282838"
-    property color fgColor: "#CDD6F4"
-    property color fgMuted: "#A6ADC8"
-    property color fgSubtle: "#6C7086"
-    property color accentColor: "#89B4FA"
-    property color accentColorGlow: "#B4BEFE"
+    // ─── Windows 11 Fluent Dark / Catppuccin Sapphire Palette ───
+    property color winBg: "#1F1F24"
+    property color winBgMica: "#1B1B20"
+    property color winSearchBg: "#2B2B32"
+    property color winCardBg: "#292930"
+    property color winCardHover: "#32323B"
+    property color winCardSelected: "#383846"
+    property color winBorder: "#383842"
+    property color winSubtleBorder: "#2E2E36"
+    property color fgColor: "#F3F3F5"
+    property color fgMuted: "#A8A8B4"
+    property color fgSubtle: "#757582"
+    property color accentColor: "#89B4FA" // Windows / Sapphire Cyan Accent
+    property color accentGlow: "#B4BEFE"
     property color dangerColor: "#F38BA8"
-    property color borderColor: "#2E2E3A"
+    property color pinColor: "#F9E2AF"
 
     property string mainFont: "Rowdies"
     property string textFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
 
-    // State & Data
+    // ─── Tabs & State ───
+    property string activeTab: "clipboard" // "clipboard", "emoji", "kaomoji", "symbols"
     property var rawItems: []
     property string searchText: ""
-    property string activeFilter: "all" // "all", "text", "image", "url", "code"
     property int selectedIndex: 0
     property bool confirmWipe: false
 
     readonly property var filteredItems: {
         if (!rawItems || rawItems.length === 0) return []
-        if (activeFilter === "all") return rawItems
+        if (!searchText || searchText.trim() === "") return rawItems
+        let q = searchText.trim().toLowerCase()
         return rawItems.filter(item => {
-            if (activeFilter === "image") return item.type === "image"
-            if (activeFilter === "text") return item.type === "text"
-            if (activeFilter === "url") return item.type === "url"
-            if (activeFilter === "code") return item.type === "code"
-            return true
+            if (item.type === "image") {
+                return (item.format && item.format.toLowerCase().includes(q)) || (item.dims && item.dims.includes(q))
+            }
+            return (item.preview && item.preview.toLowerCase().includes(q)) || (item.full_text && item.full_text.toLowerCase().includes(q))
         })
     }
 
-    onActiveFilterChanged: {
+    onActiveTabChanged: {
         selectedIndex = 0
-        if (clipList) clipList.positionViewAtBeginning()
+        searchText = ""
+        if (searchInput) searchInput.text = ""
     }
 
     onSearchTextChanged: {
         selectedIndex = 0
-        debounceTimer.restart()
+        if (activeTab === "clipboard") {
+            debounceTimer.restart()
+        }
     }
 
     Timer {
         id: debounceTimer
-        interval: 100
+        interval: 120
         repeat: false
         onTriggered: refresh()
     }
 
     Timer {
         id: wipeResetTimer
-        interval: 3500
+        interval: 3000
         repeat: false
         onTriggered: clipboardWindow.confirmWipe = false
     }
@@ -126,7 +132,12 @@ PanelWindow {
         refresh()
     }
 
-    function wipeAll() {
+    function togglePin(id) {
+        Quickshell.execDetached(["/home/madara/.config/hypr/clipboard.sh", "toggle-pin", id])
+        refresh()
+    }
+
+    function wipeUnpinned() {
         if (!confirmWipe) {
             confirmWipe = true
             wipeResetTimer.restart()
@@ -134,15 +145,19 @@ PanelWindow {
         }
         confirmWipe = false
         Quickshell.execDetached(["/home/madara/.config/hypr/clipboard.sh", "wipe"])
-        rawItems = []
+        refresh()
+    }
+
+    function pasteText(txt) {
+        close()
+        Quickshell.execDetached(["/home/madara/.config/hypr/clipboard.sh", "paste-text", txt])
     }
 
     onIsOpenChanged: {
-        console.log("ClipboardManager isOpen is now:", isOpen)
         if (isOpen) {
+            if (!activeTab || activeTab === "") activeTab = "clipboard"
             confirmWipe = false
             searchText = ""
-            activeFilter = "all"
             selectedIndex = 0
             if (searchInput) {
                 searchInput.text = ""
@@ -150,10 +165,10 @@ PanelWindow {
             }
             refresh()
             dropUpAnim.stop()
-            panelCard.opacity = 1.0
             dropDownAnim.restart()
         } else {
             confirmWipe = false
+            activeTab = "clipboard"
             dropDownAnim.stop()
             dropUpAnim.restart()
         }
@@ -170,35 +185,29 @@ PanelWindow {
     // ─── Global Shortcut & IPC Handler ──────────────────────────
     GlobalShortcut {
         name: "clipboard"
-        description: "Toggle Quickshell Clipboard Manager"
+        description: "Toggle Quickshell Windows Clipboard Manager"
         onPressed: clipboardWindow.toggle()
     }
 
     IpcHandler {
         target: "clipboard"
-        function toggle() {
-            console.log("IPC clipboard toggle called!")
-            clipboardWindow.toggle()
+        function toggle() { clipboardWindow.toggle() }
+        function open() { 
+            clipboardWindow.activeTab = "clipboard"
+            clipboardWindow.open() 
         }
-        function open() {
-            console.log("IPC clipboard open called!")
+        function close() { clipboardWindow.close() }
+        function refresh() { clipboardWindow.refresh() }
+        function paste(id: string) { clipboardWindow.pasteItem(id) }
+        function copy(id: string) { clipboardWindow.copyItem(id) }
+        function wipe() { clipboardWindow.wipeUnpinned() }
+        function openEmoji() {
+            clipboardWindow.activeTab = "emoji"
             clipboardWindow.open()
         }
-        function close() {
-            console.log("IPC clipboard close called!")
-            clipboardWindow.close()
-        }
-        function refresh() {
-            clipboardWindow.refresh()
-        }
-        function paste(id: string) {
-            clipboardWindow.pasteItem(id)
-        }
-        function copy(id: string) {
-            clipboardWindow.copyItem(id)
-        }
-        function wipe() {
-            clipboardWindow.wipeAll()
+        function openTab(tab: string) {
+            clipboardWindow.activeTab = tab
+            clipboardWindow.open()
         }
     }
 
@@ -221,11 +230,11 @@ PanelWindow {
         id: backdrop
         anchors.fill: parent
         color: "#000000"
-        opacity: clipboardWindow.isOpen ? 0.40 : 0.0
+        opacity: clipboardWindow.isOpen ? 0.45 : 0.0
         visible: opacity > 0.001
 
         Behavior on opacity {
-            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
         }
 
         MouseArea {
@@ -234,31 +243,31 @@ PanelWindow {
         }
     }
 
-    // ─── Floating Modal Panel ───────────────────────────────────
+    // ─── Windows 11 Fluent Flyout Card ──────────────────────────
     Rectangle {
         id: panelCard
         anchors.centerIn: parent
-        width: 620
-        height: 640
-        radius: 20
-        color: clipboardWindow.bgColor
-        border.color: clipboardWindow.borderColor
+        width: 420
+        height: 620
+        radius: 12
+        color: clipboardWindow.winBg
+        border.color: clipboardWindow.winBorder
         border.width: 1
         clip: true
 
-        scale: 0.94
+        scale: 0.95
         opacity: 0.0
 
         ParallelAnimation {
             id: dropDownAnim
-            NumberAnimation { target: panelCard; property: "scale"; from: 0.94; to: 1.0; duration: 240; easing.type: Easing.OutBack }
+            NumberAnimation { target: panelCard; property: "scale"; from: 0.95; to: 1.0; duration: 220; easing.type: Easing.OutCubic }
             NumberAnimation { target: panelCard; property: "opacity"; from: 0.0; to: 1.0; duration: 180; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
             id: dropUpAnim
-            NumberAnimation { target: panelCard; property: "scale"; from: 1.0; to: 0.95; duration: 160; easing.type: Easing.InCubic }
-            NumberAnimation { target: panelCard; property: "opacity"; from: 1.0; to: 0.0; duration: 150; easing.type: Easing.InCubic }
+            NumberAnimation { target: panelCard; property: "scale"; from: 1.0; to: 0.95; duration: 150; easing.type: Easing.InCubic }
+            NumberAnimation { target: panelCard; property: "opacity"; from: 1.0; to: 0.0; duration: 140; easing.type: Easing.InCubic }
         }
 
         MouseArea {
@@ -266,125 +275,172 @@ PanelWindow {
             onClicked: {} // Block clicks through to backdrop
         }
 
-        // Inner glowing top accent border line
+        // Top Subtle Fluent Glow
         Rectangle {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: 2
-            color: clipboardWindow.accentColor
-            opacity: 0.8
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.12)
         }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 18
-            spacing: 14
+            anchors.margins: 14
+            spacing: 10
 
-            // ─── Top Header Bar ─────────────────────────────────
+            // ─── 1. Top Windows Tab Bar ─────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: 4
 
-                // Icon Capsule
+                // Tab 1: Clipboard
                 Rectangle {
-                    width: 36
-                    height: 36
-                    radius: 18
-                    color: Qt.rgba(0.54, 0.71, 0.98, 0.15)
-                    border.color: Qt.rgba(0.54, 0.71, 0.98, 0.3)
-                    border.width: 1
+                    implicitWidth: 38
+                    implicitHeight: 34
+                    radius: 6
+                    color: clipboardWindow.activeTab === "clipboard" ? Qt.rgba(1, 1, 1, 0.08) : (tabClipMa.containsMouse ? Qt.rgba(1, 1, 1, 0.04) : "transparent")
 
                     Text {
                         anchors.centerIn: parent
                         text: "\uf0ea" // Clipboard
-                        font {
-                            family: clipboardWindow.iconFont
-                            pixelSize: 16
-                        }
+                        font { family: clipboardWindow.iconFont; pixelSize: 15 }
+                        color: clipboardWindow.activeTab === "clipboard" ? clipboardWindow.accentColor : clipboardWindow.fgMuted
+                    }
+
+                    // Windows underline indicator
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 18
+                        height: 2
+                        radius: 1
                         color: clipboardWindow.accentColor
+                        visible: clipboardWindow.activeTab === "clipboard"
+                    }
+
+                    MouseArea {
+                        id: tabClipMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: clipboardWindow.activeTab = "clipboard"
                     }
                 }
 
-                ColumnLayout {
-                    spacing: 2
+                // Tab 2: Emoji
+                Rectangle {
+                    implicitWidth: 38
+                    implicitHeight: 34
+                    radius: 6
+                    color: clipboardWindow.activeTab === "emoji" ? Qt.rgba(1, 1, 1, 0.08) : (tabEmojiMa.containsMouse ? Qt.rgba(1, 1, 1, 0.04) : "transparent")
+
                     Text {
-                        text: "Clipboard History"
-                        font {
-                            family: clipboardWindow.mainFont
-                            pixelSize: 17
-                            bold: true
-                        }
-                        color: clipboardWindow.fgColor
+                        anchors.centerIn: parent
+                        text: "\uf118" // Smile
+                        font { family: clipboardWindow.iconFont; pixelSize: 15 }
+                        color: clipboardWindow.activeTab === "emoji" ? clipboardWindow.accentColor : clipboardWindow.fgMuted
                     }
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 18
+                        height: 2
+                        radius: 1
+                        color: clipboardWindow.accentColor
+                        visible: clipboardWindow.activeTab === "emoji"
+                    }
+
+                    MouseArea {
+                        id: tabEmojiMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: clipboardWindow.activeTab = "emoji"
+                    }
+                }
+
+                // Tab 3: Kaomoji (•‿•)
+                Rectangle {
+                    implicitWidth: 54
+                    implicitHeight: 34
+                    radius: 6
+                    color: clipboardWindow.activeTab === "kaomoji" ? Qt.rgba(1, 1, 1, 0.08) : (tabKaoMa.containsMouse ? Qt.rgba(1, 1, 1, 0.04) : "transparent")
+
                     Text {
-                        text: clipboardWindow.rawItems.length + " clips saved"
-                        font {
-                            family: clipboardWindow.textFont
-                            pixelSize: 11
-                        }
-                        color: clipboardWindow.fgSubtle
+                        anchors.centerIn: parent
+                        text: "(•‿•)"
+                        font { family: clipboardWindow.textFont; pixelSize: 12; weight: Font.Medium }
+                        color: clipboardWindow.activeTab === "kaomoji" ? clipboardWindow.accentColor : clipboardWindow.fgMuted
+                    }
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 24
+                        height: 2
+                        radius: 1
+                        color: clipboardWindow.accentColor
+                        visible: clipboardWindow.activeTab === "kaomoji"
+                    }
+
+                    MouseArea {
+                        id: tabKaoMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: clipboardWindow.activeTab = "kaomoji"
+                    }
+                }
+
+                // Tab 4: Symbols (Ω)
+                Rectangle {
+                    implicitWidth: 38
+                    implicitHeight: 34
+                    radius: 6
+                    color: clipboardWindow.activeTab === "symbols" ? Qt.rgba(1, 1, 1, 0.08) : (tabSymMa.containsMouse ? Qt.rgba(1, 1, 1, 0.04) : "transparent")
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Ω"
+                        font { family: clipboardWindow.textFont; pixelSize: 14; weight: Font.Bold }
+                        color: clipboardWindow.activeTab === "symbols" ? clipboardWindow.accentColor : clipboardWindow.fgMuted
+                    }
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 18
+                        height: 2
+                        radius: 1
+                        color: clipboardWindow.accentColor
+                        visible: clipboardWindow.activeTab === "symbols"
+                    }
+
+                    MouseArea {
+                        id: tabSymMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: clipboardWindow.activeTab = "symbols"
                     }
                 }
 
                 Item { Layout.fillWidth: true }
 
-                // Wipe / Clear All Button
+                // Windows Style Close Button (✕)
                 Rectangle {
-                    implicitWidth: wipeRow.implicitWidth + 18
+                    implicitWidth: 32
                     implicitHeight: 32
-                    radius: 16
-                    color: clipboardWindow.confirmWipe ? clipboardWindow.dangerColor : (wipeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04))
-                    border.color: clipboardWindow.confirmWipe ? clipboardWindow.dangerColor : Qt.rgba(1, 1, 1, 0.06)
-                    border.width: 1
-
-                    RowLayout {
-                        id: wipeRow
-                        anchors.centerIn: parent
-                        spacing: 6
-                        Text {
-                            text: "\uf1f8" // Trash
-                            font {
-                                family: clipboardWindow.iconFont
-                                pixelSize: 12
-                            }
-                            color: clipboardWindow.confirmWipe ? "#11111B" : (wipeMa.containsMouse ? clipboardWindow.dangerColor : clipboardWindow.fgMuted)
-                        }
-                        Text {
-                            text: clipboardWindow.confirmWipe ? "Confirm Wipe?" : "Clear All"
-                            font {
-                                family: clipboardWindow.textFont
-                                pixelSize: 12
-                                weight: Font.Medium
-                            }
-                            color: clipboardWindow.confirmWipe ? "#11111B" : (wipeMa.containsMouse ? clipboardWindow.dangerColor : clipboardWindow.fgMuted)
-                        }
-                    }
-
-                    MouseArea {
-                        id: wipeMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: clipboardWindow.wipeAll()
-                    }
-                }
-
-                // Close Button
-                Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 16
-                    color: closeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.04)
+                    radius: 6
+                    color: closeMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent"
 
                     Text {
                         anchors.centerIn: parent
-                        text: "\uf00d" // Times / Close
-                        font {
-                            family: clipboardWindow.iconFont
-                            pixelSize: 14
-                        }
-                        color: clipboardWindow.fgMuted
+                        text: "\uf00d"
+                        font { family: clipboardWindow.iconFont; pixelSize: 13 }
+                        color: closeMa.containsMouse ? "#FFFFFF" : clipboardWindow.fgMuted
                     }
 
                     MouseArea {
@@ -397,27 +453,24 @@ PanelWindow {
                 }
             }
 
-            // ─── Search Bar ─────────────────────────────────────
+            // ─── 2. Windows 11 Search Bar ───────────────────────
             Rectangle {
                 Layout.fillWidth: true
-                height: 44
-                radius: 12
-                color: clipboardWindow.bgColor2
-                border.color: searchInput.activeFocus ? clipboardWindow.accentColor : clipboardWindow.borderColor
+                height: 36
+                radius: 6
+                color: clipboardWindow.winSearchBg
+                border.color: searchInput.activeFocus ? clipboardWindow.accentColor : clipboardWindow.winSubtleBorder
                 border.width: 1
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 12
-                    spacing: 10
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 8
+                    spacing: 8
 
                     Text {
-                        text: "\uf002" // Search
-                        font {
-                            family: clipboardWindow.iconFont
-                            pixelSize: 14
-                        }
+                        text: "\uf002"
+                        font { family: clipboardWindow.iconFont; pixelSize: 12 }
                         color: searchInput.activeFocus ? clipboardWindow.accentColor : clipboardWindow.fgSubtle
                     }
 
@@ -425,17 +478,19 @@ PanelWindow {
                         id: searchInput
                         Layout.fillWidth: true
                         color: clipboardWindow.fgColor
-                        font {
-                            family: clipboardWindow.textFont
-                            pixelSize: 13
-                        }
+                        font { family: clipboardWindow.textFont; pixelSize: 12 }
                         clip: true
                         selectByMouse: true
                         selectedTextColor: "#11111B"
                         selectionColor: clipboardWindow.accentColor
 
                         Text {
-                            text: "Type to search clipboard history..."
+                            text: {
+                                if (clipboardWindow.activeTab === "emoji") return "Search emoji..."
+                                if (clipboardWindow.activeTab === "kaomoji") return "Search kaomoji..."
+                                if (clipboardWindow.activeTab === "symbols") return "Search symbols..."
+                                return "Search clipboard..."
+                            }
                             color: clipboardWindow.fgSubtle
                             font: parent.font
                             visible: !parent.text && !parent.inputMethodComposing
@@ -446,44 +501,46 @@ PanelWindow {
                         Keys.onEscapePressed: clipboardWindow.closeRequested()
 
                         Keys.onDownPressed: {
-                            if (clipboardWindow.filteredItems.length > 0) {
+                            if (clipboardWindow.activeTab === "clipboard" && clipboardWindow.filteredItems.length > 0) {
                                 clipboardWindow.selectedIndex = Math.min(clipboardWindow.filteredItems.length - 1, clipboardWindow.selectedIndex + 1)
                                 clipList.positionViewAtIndex(clipboardWindow.selectedIndex, ListView.Contain)
                             }
                         }
 
                         Keys.onUpPressed: {
-                            if (clipboardWindow.filteredItems.length > 0) {
+                            if (clipboardWindow.activeTab === "clipboard" && clipboardWindow.filteredItems.length > 0) {
                                 clipboardWindow.selectedIndex = Math.max(0, clipboardWindow.selectedIndex - 1)
                                 clipList.positionViewAtIndex(clipboardWindow.selectedIndex, ListView.Contain)
                             }
                         }
 
                         Keys.onReturnPressed: {
-                            if (clipboardWindow.filteredItems.length > 0 && clipboardWindow.selectedIndex >= 0 && clipboardWindow.selectedIndex < clipboardWindow.filteredItems.length) {
-                                clipboardWindow.pasteItem(clipboardWindow.filteredItems[clipboardWindow.selectedIndex].id)
+                            if (clipboardWindow.activeTab === "clipboard" && clipboardWindow.filteredItems.length > 0) {
+                                let item = clipboardWindow.filteredItems[clipboardWindow.selectedIndex]
+                                if (item) clipboardWindow.pasteItem(item.id)
                             }
                         }
 
                         Keys.onDeletePressed: {
-                            if (clipboardWindow.filteredItems.length > 0 && clipboardWindow.selectedIndex >= 0 && clipboardWindow.selectedIndex < clipboardWindow.filteredItems.length) {
-                                clipboardWindow.deleteItem(clipboardWindow.filteredItems[clipboardWindow.selectedIndex].id)
+                            if (clipboardWindow.activeTab === "clipboard" && clipboardWindow.filteredItems.length > 0) {
+                                let item = clipboardWindow.filteredItems[clipboardWindow.selectedIndex]
+                                if (item) clipboardWindow.deleteItem(item.id)
                             }
                         }
                     }
 
-                    // Clear search button
+                    // Clear button
                     Rectangle {
-                        width: 22
-                        height: 22
-                        radius: 11
+                        width: 18
+                        height: 18
+                        radius: 9
                         color: Qt.rgba(1, 1, 1, 0.08)
                         visible: searchInput.text.length > 0
 
                         Text {
                             anchors.centerIn: parent
                             text: "\uf00d"
-                            font { family: clipboardWindow.iconFont; pixelSize: 11 }
+                            font { family: clipboardWindow.iconFont; pixelSize: 9 }
                             color: clipboardWindow.fgMuted
                         }
 
@@ -496,89 +553,71 @@ PanelWindow {
                 }
             }
 
-            // ─── Filter Pills ───────────────────────────────────
+            // ─── 3. Section Header (Clipboard Title & Clear All) ──
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                visible: clipboardWindow.activeTab === "clipboard"
+                height: 24
 
-                Repeater {
-                    model: [
-                        { label: "All", filter: "all", icon: "\uf0ca" },
-                        { label: "Text", filter: "text", icon: "\uf036" },
-                        { label: "Images", filter: "image", icon: "\uf03e" },
-                        { label: "Links", filter: "url", icon: "\uf0c1" },
-                        { label: "Code", filter: "code", icon: "\uf121" }
-                    ]
+                Text {
+                    text: "Clipboard"
+                    font { family: clipboardWindow.textFont; pixelSize: 13; weight: Font.Bold }
+                    color: clipboardWindow.fgColor
+                }
 
-                    delegate: Rectangle {
-                        implicitWidth: pillContent.implicitWidth + 20
-                        implicitHeight: 28
-                        radius: 14
-                        color: clipboardWindow.activeFilter === modelData.filter ? clipboardWindow.accentColor : (pillMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04))
-                        border.color: clipboardWindow.activeFilter === modelData.filter ? clipboardWindow.accentColor : Qt.rgba(1, 1, 1, 0.05)
-                        border.width: 1
+                Item { Layout.fillWidth: true }
 
-                        RowLayout {
-                            id: pillContent
-                            anchors.centerIn: parent
-                            spacing: 6
+                // Windows Style "Clear all" Button
+                Rectangle {
+                    implicitWidth: clearText.implicitWidth + 14
+                    implicitHeight: 24
+                    radius: 4
+                    color: clipboardWindow.confirmWipe ? clipboardWindow.dangerColor : (clearMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
 
-                            Text {
-                                text: modelData.icon
-                                font { family: clipboardWindow.iconFont; pixelSize: 11 }
-                                color: clipboardWindow.activeFilter === modelData.filter ? "#11111B" : (pillMa.containsMouse ? clipboardWindow.fgColor : clipboardWindow.fgMuted)
-                            }
+                    Text {
+                        id: clearText
+                        anchors.centerIn: parent
+                        text: clipboardWindow.confirmWipe ? "Confirm clear?" : "Clear all"
+                        font { family: clipboardWindow.textFont; pixelSize: 11; weight: Font.Medium }
+                        color: clipboardWindow.confirmWipe ? "#11111B" : (clearMa.containsMouse ? clipboardWindow.fgColor : clipboardWindow.fgMuted)
+                    }
 
-                            Text {
-                                text: modelData.label
-                                font {
-                                    family: clipboardWindow.textFont
-                                    pixelSize: 11
-                                    weight: clipboardWindow.activeFilter === modelData.filter ? Font.Bold : Font.Normal
-                                }
-                                color: clipboardWindow.activeFilter === modelData.filter ? "#11111B" : (pillMa.containsMouse ? clipboardWindow.fgColor : clipboardWindow.fgMuted)
-                            }
-                        }
-
-                        MouseArea {
-                            id: pillMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: clipboardWindow.activeFilter = modelData.filter
-                        }
+                    MouseArea {
+                        id: clearMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: clipboardWindow.wipeUnpinned()
                     }
                 }
             }
 
-            // ─── Clips List ─────────────────────────────────────
-            Rectangle {
+            // ─── 4. Main Body: Switchable Content Area ───────────
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                radius: 14
-                color: clipboardWindow.bgColor2
-                border.color: clipboardWindow.borderColor
-                border.width: 1
-                clip: true
 
+                // ── TAB A: CLIPBOARD HISTORY ──
                 ListView {
                     id: clipList
                     anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 6
+                    visible: clipboardWindow.activeTab === "clipboard"
+                    clip: true
                     model: clipboardWindow.filteredItems
-
+                    spacing: 6
                     boundsBehavior: Flickable.StopAtBounds
+
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
+                        width: 4
                     }
 
-                    // Empty State
+                    // Windows Empty State
                     Item {
                         anchors.centerIn: parent
                         visible: clipList.count === 0
-                        width: parent.width
-                        height: 180
+                        width: parent.width - 40
+                        height: 200
 
                         ColumnLayout {
                             anchors.centerIn: parent
@@ -586,18 +625,18 @@ PanelWindow {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: "\uf0ea"
-                                font { family: clipboardWindow.iconFont; pixelSize: 36 }
-                                color: Qt.rgba(1, 1, 1, 0.15)
+                                font { family: clipboardWindow.iconFont; pixelSize: 42 }
+                                color: Qt.rgba(1, 1, 1, 0.18)
                             }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: clipboardWindow.searchText.length > 0 ? "No matching clips found" : "Clipboard history is empty"
-                                font { family: clipboardWindow.textFont; pixelSize: 13; weight: Font.Medium }
-                                color: clipboardWindow.fgMuted
+                                text: clipboardWindow.searchText.length > 0 ? "No results found" : "Your clipboard is empty"
+                                font { family: clipboardWindow.textFont; pixelSize: 13; weight: Font.Bold }
+                                color: clipboardWindow.fgColor
                             }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: "Items you copy with Ctrl+C will appear here automatically"
+                                text: "Copy text or images to view them here."
                                 font { family: clipboardWindow.textFont; pixelSize: 11 }
                                 color: clipboardWindow.fgSubtle
                             }
@@ -605,19 +644,23 @@ PanelWindow {
                     }
 
                     delegate: Rectangle {
-                        id: clipCard
+                        id: winCard
                         width: clipList.width
-                        height: modelData.type === "image" ? 84 : 64
-                        radius: 10
-                        color: index === clipboardWindow.selectedIndex ? Qt.rgba(0.54, 0.71, 0.98, 0.18) : (cardMa.containsMouse ? clipboardWindow.cardHover : clipboardWindow.cardBg)
-                        border.color: index === clipboardWindow.selectedIndex ? clipboardWindow.accentColor : Qt.rgba(1, 1, 1, 0.04)
+                        implicitHeight: {
+                            if (modelData.type === "image") return 140
+                            return Math.min(130, Math.max(54, cardContentCol.implicitHeight + 20))
+                        }
+                        radius: 8
+                        color: index === clipboardWindow.selectedIndex ? clipboardWindow.winCardSelected : (cardHoverMa.containsMouse ? clipboardWindow.winCardHover : clipboardWindow.winCardBg)
+                        border.color: index === clipboardWindow.selectedIndex ? clipboardWindow.accentColor : (modelData.pinned ? Qt.rgba(0.97, 0.88, 0.68, 0.4) : clipboardWindow.winSubtleBorder)
                         border.width: 1
 
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        Behavior on border.color { ColorAnimation { duration: 120 } }
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        Behavior on border.color { ColorAnimation { duration: 100 } }
 
+                        // Card Click Area (Pastes Item)
                         MouseArea {
-                            id: cardMa
+                            id: cardHoverMa
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -627,231 +670,322 @@ PanelWindow {
                             }
                         }
 
-                        RowLayout {
+                        // Content Layout
+                        ColumnLayout {
+                            id: cardContentCol
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 12
+                            anchors.margins: 10
+                            anchors.rightMargin: 64 // Space for pin & delete buttons
+                            spacing: 6
 
-                            // ── Type Icon or Thumbnail ─────────
-                            Rectangle {
-                                width: modelData.type === "image" ? 64 : 38
-                                height: modelData.type === "image" ? 64 : 38
-                                radius: 8
-                                color: clipboardWindow.bgColor3
-                                clip: true
+                            // Image Clip
+                            Item {
+                                visible: modelData.type === "image"
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
 
                                 Image {
                                     anchors.fill: parent
                                     source: modelData.thumb ? ("file://" + modelData.thumb) : ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: modelData.type === "image" && modelData.thumb !== ""
+                                    fillMode: Image.PreserveAspectFit
                                     asynchronous: true
                                 }
+                            }
+
+                            // Text / URL / Code Clip
+                            Text {
+                                visible: modelData.type !== "image"
+                                Layout.fillWidth: true
+                                text: modelData.preview || ""
+                                color: index === clipboardWindow.selectedIndex ? clipboardWindow.accentGlow : clipboardWindow.fgColor
+                                font {
+                                    family: modelData.type === "code" ? clipboardWindow.iconFont : clipboardWindow.textFont
+                                    pixelSize: 12
+                                    weight: modelData.type === "url" ? Font.Medium : Font.Normal
+                                }
+                                wrapMode: Text.Wrap
+                                maximumLineCount: 3
+                                elide: Text.ElideRight
+                                lineHeight: 1.25
+                            }
+
+                            // Meta pill row
+                            RowLayout {
+                                visible: modelData.type === "image" || modelData.type === "url" || modelData.type === "code"
+                                spacing: 6
+                                Rectangle {
+                                    implicitWidth: badgeTxt.implicitWidth + 8
+                                    implicitHeight: 16
+                                    radius: 3
+                                    color: Qt.rgba(1, 1, 1, 0.08)
+                                    Text {
+                                        id: badgeTxt
+                                        anchors.centerIn: parent
+                                        text: modelData.type === "image" ? (modelData.dims || "IMAGE") : modelData.type.toUpperCase()
+                                        font { family: clipboardWindow.textFont; pixelSize: 9; weight: Font.Bold }
+                                        color: clipboardWindow.fgMuted
+                                    }
+                                }
+                                Text {
+                                    text: modelData.size || ""
+                                    font { family: clipboardWindow.textFont; pixelSize: 10 }
+                                    color: clipboardWindow.fgSubtle
+                                }
+                            }
+                        }
+
+                        // Windows 11 Card Top-Right Action Buttons
+                        RowLayout {
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.topMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 4
+
+                            // 📌 Pin Button (Windows Feature)
+                            Rectangle {
+                                width: 26
+                                height: 26
+                                radius: 4
+                                color: modelData.pinned ? Qt.rgba(0.97, 0.88, 0.68, 0.2) : (pinBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent")
+                                border.color: modelData.pinned ? clipboardWindow.pinColor : "transparent"
+                                border.width: 1
 
                                 Text {
                                     anchors.centerIn: parent
-                                    visible: modelData.type !== "image" || modelData.thumb === ""
-                                    text: {
-                                        if (modelData.type === "url") return "\uf0c1" // Link
-                                        if (modelData.type === "code") return "\uf121" // Code
-                                        if (modelData.type === "image") return "\uf03e" // Image
-                                        return "\uf036" // Text
-                                    }
-                                    font {
-                                        family: clipboardWindow.iconFont
-                                        pixelSize: 15
-                                    }
-                                    color: {
-                                        if (modelData.type === "url") return "#89DCEB"
-                                        if (modelData.type === "code") return "#A6E3A1"
-                                        if (modelData.type === "image") return "#F9E2AF"
-                                        return clipboardWindow.accentColor
-                                    }
+                                    text: "\uf08d" // Pin
+                                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
+                                    color: modelData.pinned ? clipboardWindow.pinColor : (pinBtnMa.containsMouse ? clipboardWindow.fgColor : clipboardWindow.fgSubtle)
+                                }
+
+                                MouseArea {
+                                    id: pinBtnMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: clipboardWindow.togglePin(modelData.id)
                                 }
                             }
 
-                            // ── Preview Details ────────────────
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    // Badge
-                                    Rectangle {
-                                        implicitWidth: badgeText.implicitWidth + 10
-                                        implicitHeight: 18
-                                        radius: 4
-                                        color: Qt.rgba(1, 1, 1, 0.08)
-
-                                        Text {
-                                            id: badgeText
-                                            anchors.centerIn: parent
-                                            text: modelData.format || "TEXT"
-                                            font { family: clipboardWindow.textFont; pixelSize: 9; weight: Font.Bold }
-                                            color: clipboardWindow.fgMuted
-                                        }
-                                    }
-
-                                    Text {
-                                        text: modelData.size || ""
-                                        font { family: clipboardWindow.textFont; pixelSize: 10 }
-                                        color: clipboardWindow.fgSubtle
-                                    }
-
-                                    Item { Layout.fillWidth: true }
-                                }
+                            // 🗑 Delete Button
+                            Rectangle {
+                                width: 26
+                                height: 26
+                                radius: 4
+                                color: delBtnMa.containsMouse ? Qt.rgba(0.95, 0.54, 0.66, 0.25) : "transparent"
 
                                 Text {
-                                    Layout.fillWidth: true
-                                    text: modelData.preview || ""
-                                    color: index === clipboardWindow.selectedIndex ? clipboardWindow.accentColorGlow : clipboardWindow.fgColor
-                                    font {
-                                        family: modelData.type === "code" ? clipboardWindow.iconFont : clipboardWindow.textFont
-                                        pixelSize: 12
-                                        weight: modelData.type === "url" ? Font.Medium : Font.Normal
-                                    }
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 2
-                                    wrapMode: Text.WordWrap
+                                    anchors.centerIn: parent
+                                    text: "\uf00d" // Times / Delete
+                                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
+                                    color: delBtnMa.containsMouse ? clipboardWindow.dangerColor : clipboardWindow.fgSubtle
+                                }
+
+                                MouseArea {
+                                    id: delBtnMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: clipboardWindow.deleteItem(modelData.id)
                                 }
                             }
+                        }
+                    }
+                }
 
-                            // ── Action Buttons (Paste, Copy, Delete) ──
-                            RowLayout {
-                                spacing: 6
-                                opacity: cardMa.containsMouse || index === clipboardWindow.selectedIndex ? 1.0 : 0.0
+                // ── TAB B: EMOJI PICKER (Windows Expression Panel) ──
+                Item {
+                    id: emojiView
+                    anchors.fill: parent
+                    visible: clipboardWindow.activeTab === "emoji"
 
-                                Behavior on opacity { NumberAnimation { duration: 120 } }
+                    readonly property var emojiData: [
+                        // Smileys
+                        "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "🥹", "😊",
+                        "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙",
+                        "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+                        "🫡", "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄", "😬",
+                        "🤥", "😌", "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕", "🤢",
+                        // Gestures & People
+                        "👍", "👎", "👏", "🙌", "👐", "🤲", "🤝", "🙏", "✌️", "🤞",
+                        "🤟", "🤘", "🤙", "👈", "👉", "👆", "👇", "☝️", "👋", "🤚",
+                        "💪", "🦾", "👀", "🧠", "❤️", "🧡", "💛", "💚", "💙", "💜",
+                        "🖤", "🤍", "🤎", "💔", "❤️‍🔥", "💖", "✨", "⭐", "🌟", "🔥",
+                        // Objects & Tech
+                        "💻", "📱", "⌨️", "🖱️", "🖥️", "📷", "🎮", "🕹️", "🎧", "🎵",
+                        "🚀", "⚡", "💡", "🛠️", "⚙️", "🔒", "🔑", "📦", "📌", "🎉"
+                    ]
 
-                                // Quick Paste Button
-                                Rectangle {
-                                    implicitWidth: pasteRow.implicitWidth + 14
-                                    implicitHeight: 28
-                                    radius: 14
-                                    color: pasteMa.containsMouse ? clipboardWindow.accentColor : Qt.rgba(0.54, 0.71, 0.98, 0.15)
-                                    border.color: clipboardWindow.accentColor
-                                    border.width: 1
+                    GridView {
+                        id: emojiGrid
+                        anchors.fill: parent
+                        clip: true
+                        cellWidth: Math.floor(width / 6)
+                        cellHeight: 46
+                        boundsBehavior: Flickable.StopAtBounds
 
-                                    RowLayout {
-                                        id: pasteRow
-                                        anchors.centerIn: parent
-                                        spacing: 4
-                                        Text {
-                                            text: "\uf0ea"
-                                            font { family: clipboardWindow.iconFont; pixelSize: 10 }
-                                            color: pasteMa.containsMouse ? "#11111B" : clipboardWindow.accentColor
-                                        }
-                                        Text {
-                                            text: "Paste"
-                                            font { family: clipboardWindow.textFont; pixelSize: 11; weight: Font.Bold }
-                                            color: pasteMa.containsMouse ? "#11111B" : clipboardWindow.accentColor
-                                        }
-                                    }
+                        model: {
+                            if (!clipboardWindow.searchText || clipboardWindow.searchText.trim() === "") return emojiView.emojiData
+                            let q = clipboardWindow.searchText.trim()
+                            return emojiView.emojiData.filter(e => e.includes(q))
+                        }
 
-                                    MouseArea {
-                                        id: pasteMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: clipboardWindow.pasteItem(modelData.id)
-                                    }
-                                }
+                        delegate: Rectangle {
+                            width: emojiGrid.cellWidth - 4
+                            height: emojiGrid.cellHeight - 4
+                            radius: 6
+                            color: emMa.containsMouse ? clipboardWindow.winCardHover : "transparent"
 
-                                // Quick Copy Button
-                                Rectangle {
-                                    width: 28
-                                    height: 28
-                                    radius: 14
-                                    color: copyMa.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.06)
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                font { pixelSize: 22 }
+                            }
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "\uf0c5" // Copy
-                                        font { family: clipboardWindow.iconFont; pixelSize: 11 }
-                                        color: clipboardWindow.fgMuted
-                                    }
+                            MouseArea {
+                                id: emMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: clipboardWindow.pasteText(modelData)
+                            }
+                        }
+                    }
+                }
 
-                                    MouseArea {
-                                        id: copyMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: clipboardWindow.copyItem(modelData.id)
-                                    }
-                                }
+                // ── TAB C: KAOMOJI (•‿•) ──
+                Item {
+                    id: kaomojiView
+                    anchors.fill: parent
+                    visible: clipboardWindow.activeTab === "kaomoji"
 
-                                // Delete Single Clip Button
-                                Rectangle {
-                                    width: 28
-                                    height: 28
-                                    radius: 14
-                                    color: delMa.containsMouse ? Qt.rgba(0.95, 0.54, 0.66, 0.25) : Qt.rgba(1, 1, 1, 0.06)
+                    readonly property var kaomojiData: [
+                        "¯\\_(ツ)_/¯", "(•‿•)", "(╯°□°)╯︵ ┻━┻", "(ง •_•)ง", "(✿◡‿◡)",
+                        "(づ｡◕‿‿◕｡)づ", "ಠ_ಠ", "(☞ﾟヮﾟ)☞", "☜(ﾟヮﾟ☜)", "(;´༎ຶД༎ຶ`)",
+                        "(¬‿¬)", "ʕ•ᴥ•ʔ", "(^///^)", "ヘ( ^o^)ノ", "(┬┬﹏┬┬)",
+                        "( •̀ ω •́ )✧", "(=^・^=)", "(*/ω＼*)", "(´▽`ʃ♡ƪ)", "(~_~;)"
+                    ]
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "\uf00d"
-                                        font { family: clipboardWindow.iconFont; pixelSize: 11 }
-                                        color: delMa.containsMouse ? clipboardWindow.dangerColor : clipboardWindow.fgSubtle
-                                    }
+                    ListView {
+                        anchors.fill: parent
+                        clip: true
+                        spacing: 6
+                        boundsBehavior: Flickable.StopAtBounds
 
-                                    MouseArea {
-                                        id: delMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: clipboardWindow.deleteItem(modelData.id)
-                                    }
-                                }
+                        model: {
+                            if (!clipboardWindow.searchText || clipboardWindow.searchText.trim() === "") return kaomojiView.kaomojiData
+                            let q = clipboardWindow.searchText.trim()
+                            return kaomojiView.kaomojiData.filter(k => k.includes(q))
+                        }
+
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 40
+                            radius: 6
+                            color: kaoMa.containsMouse ? clipboardWindow.winCardHover : clipboardWindow.winCardBg
+                            border.color: clipboardWindow.winSubtleBorder
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                font { family: clipboardWindow.textFont; pixelSize: 13; weight: Font.Medium }
+                                color: clipboardWindow.fgColor
+                            }
+
+                            MouseArea {
+                                id: kaoMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: clipboardWindow.pasteText(modelData)
+                            }
+                        }
+                    }
+                }
+
+                // ── TAB D: SYMBOLS (Ω) ──
+                Item {
+                    id: symbolsView
+                    anchors.fill: parent
+                    visible: clipboardWindow.activeTab === "symbols"
+
+                    readonly property var symbolData: [
+                        "±", "×", "÷", "≠", "≈", "≤", "≥", "√", "∞", "∫",
+                        "π", "∑", "∆", "µ", "°", "‰", "€", "$", "£", "¥",
+                        "₹", "¢", "©", "®", "™", "§", "¶", "•", "…", "—",
+                        "–", "«", "»", "“", "”", "‘", "’", "†", "‡", "↵",
+                        "←", "↑", "→", "↓", "↔", "↕", "⇒", "⇔", "✓", "✗"
+                    ]
+
+                    GridView {
+                        id: symGrid
+                        anchors.fill: parent
+                        clip: true
+                        cellWidth: Math.floor(width / 6)
+                        cellHeight: 46
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        model: {
+                            if (!clipboardWindow.searchText || clipboardWindow.searchText.trim() === "") return symbolsView.symbolData
+                            let q = clipboardWindow.searchText.trim()
+                            return symbolsView.symbolData.filter(s => s.includes(q))
+                        }
+
+                        delegate: Rectangle {
+                            width: symGrid.cellWidth - 4
+                            height: symGrid.cellHeight - 4
+                            radius: 6
+                            color: symMa.containsMouse ? clipboardWindow.winCardHover : clipboardWindow.winCardBg
+                            border.color: clipboardWindow.winSubtleBorder
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                font { family: clipboardWindow.textFont; pixelSize: 16; weight: Font.Medium }
+                                color: clipboardWindow.fgColor
+                            }
+
+                            MouseArea {
+                                id: symMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: clipboardWindow.pasteText(modelData)
                             }
                         }
                     }
                 }
             }
 
-            // ─── Bottom Keyboard Shortcuts Hint ─────────────────
+            // ─── 5. Bottom Keyboard Hints (Subtle) ───────────────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 8
+                opacity: 0.7
 
                 Text {
                     text: "[Enter] Paste"
-                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
+                    font { family: clipboardWindow.textFont; pixelSize: 10 }
                     color: clipboardWindow.fgSubtle
                 }
-
-                Text {
-                    text: "•"
-                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
-                    color: clipboardWindow.borderColor
-                }
-
-                Text {
-                    text: "[↑/↓] Navigate"
-                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
-                    color: clipboardWindow.fgSubtle
-                }
-
-                Text {
-                    text: "•"
-                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
-                    color: clipboardWindow.borderColor
-                }
-
+                Text { text: "•"; font.pixelSize: 10; color: clipboardWindow.winBorder }
                 Text {
                     text: "[Del] Remove"
-                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
+                    font { family: clipboardWindow.textFont; pixelSize: 10 }
                     color: clipboardWindow.fgSubtle
                 }
-
+                Text { text: "•"; font.pixelSize: 10; color: clipboardWindow.winBorder }
+                Text {
+                    text: "📌 Pin to keep"
+                    font { family: clipboardWindow.textFont; pixelSize: 10 }
+                    color: clipboardWindow.fgSubtle
+                }
                 Item { Layout.fillWidth: true }
-
                 Text {
                     text: "[Esc] Close"
-                    font { family: clipboardWindow.iconFont; pixelSize: 11 }
+                    font { family: clipboardWindow.textFont; pixelSize: 10 }
                     color: clipboardWindow.fgSubtle
                 }
             }
