@@ -103,6 +103,8 @@ hl.config({
 
     misc = {
         force_default_wallpaper = 0,
+        focus_on_activate = true,
+        initial_workspace_tracking = 1,
     },
 
     input = {
