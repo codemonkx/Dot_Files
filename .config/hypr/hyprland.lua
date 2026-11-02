@@ -45,6 +45,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("~/.config/hypr/swaybg.sh")
     hl.exec_cmd("~/.config/hypr/quickshell.sh")
     hl.exec_cmd("~/.config/hypr/clipboard.sh daemon")
+    hl.exec_cmd("python3 ~/.config/hypr/workspace_autocollapse.py")
 end)
 
 -------------------------------
