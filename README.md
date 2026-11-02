@@ -77,7 +77,7 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
   - **Window Blur:** Dynamic Hyprland blur toggle.
   - **Touchpad:** macOS Natural Scrolling & Tap to Click controls.
   - **Power Profiles:** 3-Way sliding pill for Performance, Balanced, and Power Saver.
-  - **Quick Shortcuts:** Instant terminal shortcuts to `hyprland.conf` and `quickshell`.
+  - **Quick Shortcuts:** Instant terminal shortcuts to `hyprland.lua` and `quickshell`.
 - **Screen Share Picker (`ScreenSharePicker.qml` & `share_picker.sh`):**
   - Replaces default Qt `hyprland-share-picker` with a native Catppuccin Sapphire Quickshell modal.
   - Direct integration with `xdg-desktop-portal-hyprland` via `~/.config/hypr/xdph.conf`.

@@ -3566,7 +3566,7 @@ PanelWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                             Text {
-                                text: "hyprland.conf"
+                                text: "hyprland.lua"
                                 font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
                                 color: controlPanelWindow.fgColor
                                 anchors.verticalCenter: parent.verticalCenter
@@ -3580,7 +3580,7 @@ PanelWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 controlPanelWindow.closeRequested()
-                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/hypr/hyprland.conf"])
+                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/hypr/hyprland.lua"])
                             }
                         }
                     }
