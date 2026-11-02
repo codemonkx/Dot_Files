@@ -90,27 +90,40 @@ if [ "$DRY_RUN" = false ]; then
 fi
 
 # ─── 3. Package Management & Automatic AUR Helper Bootstrap ───────────────────
-log "Verifying package manager and AUR helper..."
+log "Configuring AUR helper (yay / paru)..."
 
 AUR_HELPER=""
-if command -v yay &>/dev/null; then
-    AUR_HELPER="yay"
-elif command -v paru &>/dev/null; then
-    AUR_HELPER="paru"
+
+if [ "$AUTO_YES" = true ]; then
+    if command -v yay &>/dev/null; then
+        AUR_HELPER="yay"
+    elif command -v paru &>/dev/null; then
+        AUR_HELPER="paru"
+    else
+        AUR_HELPER="yay"
+    fi
+else
+    echo -e "  ${C_CYAN}Select your preferred AUR helper:${C_RESET}"
+    echo -e "    ${C_BOLD}1) yay${C_RESET}   (Fast, Go-based AUR helper)"
+    echo -e "    ${C_BOLD}2) paru${C_RESET}  (Feature-packed, Rust-based AUR helper)"
+    read -rp "  Enter choice [1/2] (default: 1): " aur_choice
+    case "$aur_choice" in
+        2|paru) AUR_HELPER="paru" ;;
+        *)      AUR_HELPER="yay" ;;
+    esac
 fi
 
-if [ -z "$AUR_HELPER" ] && [ "$DRY_RUN" = false ]; then
-    info "No AUR helper found. Bootstrapping 'yay-bin' automatically..."
+if ! command -v "$AUR_HELPER" &>/dev/null && [ "$DRY_RUN" = false ]; then
+    info "'$AUR_HELPER' is not installed. Bootstrapping '${AUR_HELPER}-bin' from AUR..."
     sudo pacman -S --needed --noconfirm base-devel git
-    BOOTSTRAP_DIR="/tmp/yay_bootstrap_$$"
+    BOOTSTRAP_DIR="/tmp/${AUR_HELPER}_bootstrap_$$"
     mkdir -p "$BOOTSTRAP_DIR"
-    git clone https://aur.archlinux.org/yay-bin.git "$BOOTSTRAP_DIR/yay-bin"
-    (cd "$BOOTSTRAP_DIR/yay-bin" && makepkg -si --noconfirm)
+    git clone "https://aur.archlinux.org/${AUR_HELPER}-bin.git" "$BOOTSTRAP_DIR/${AUR_HELPER}-bin"
+    (cd "$BOOTSTRAP_DIR/${AUR_HELPER}-bin" && makepkg -si --noconfirm)
     rm -rf "$BOOTSTRAP_DIR"
-    AUR_HELPER="yay"
-    ok "Installed and configured 'yay' AUR helper successfully!"
+    ok "Installed and configured '$AUR_HELPER' successfully!"
 else
-    ok "Using AUR helper: ${AUR_HELPER:-pacman (dry-run)}"
+    ok "Using AUR helper: $AUR_HELPER"
 fi
 
 # ─── 4. Install Dependencies ──────────────────────────────────────────────────
@@ -306,32 +319,43 @@ if [ "$IS_VM" = true ] && [ "$DRY_RUN" = false ]; then
     ok "VM software cursor fallback enabled!"
 fi
 
-# ─── 9. Deploy Bundled Wallpaper & Optional Pack ──────────────────────────────
-log "Initializing desktop wallpaper..."
+# ─── 9. Desktop Wallpaper Setup ───────────────────────────────────────────────
+log "Desktop Wallpaper Setup..."
 
-mkdir -p "$HOME/Pictures"
-
-# 1. Deploy default bundled wallpaper immediately
-if [ -f "$DOTFILES_DIR/assets/wallpaper/default.jpg" ] && [ "$DRY_RUN" = false ]; then
-    cp -f "$DOTFILES_DIR/assets/wallpaper/default.jpg" "$HOME/Pictures/wall.jpg"
-    echo "$HOME/Pictures/wall.jpg" > "$HOME/.config/hypr/current_wallpaper" 2>/dev/null || true
-    ok "Default high-resolution Catppuccin wallpaper deployed!"
+NEED_WALLPAPER=true
+if [ "$AUTO_YES" = false ]; then
+    read -rp "  Do you want to setup wallpaper? [Y/n] " wp_needed_input
+    if [[ "$wp_needed_input" =~ ^[Nn]$ ]]; then
+        NEED_WALLPAPER=false
+        info "Skipping wallpaper setup as requested."
+    fi
 fi
 
-# 2. Optionally clone the 120-wallpaper collection
-WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
-if [ ! -d "$WALLPAPER_DIR" ] && [ "$DRY_RUN" = false ]; then
-    if [ "$AUTO_YES" = true ]; then
-        info "Non-interactive mode: skipping full 120-wallpaper pack download."
-    else
-        read -rp "  Download full 120-wallpaper collection from GitHub (~200MB)? [y/N] " wp_choice
-        if [[ "$wp_choice" =~ ^[Yy]$ ]]; then
-            info "Cloning wallpapers to ${WALLPAPER_DIR}..."
-            git clone --depth 1 https://github.com/codemonkx/Wallpapers.git "$WALLPAPER_DIR" || warn "Could not clone wallpapers. You can download manually later."
-        fi
+if [ "$NEED_WALLPAPER" = true ]; then
+    mkdir -p "$HOME/Pictures"
+
+    # 1. Deploy default bundled wallpaper immediately
+    if [ -f "$DOTFILES_DIR/assets/wallpaper/default.jpg" ] && [ "$DRY_RUN" = false ]; then
+        cp -f "$DOTFILES_DIR/assets/wallpaper/default.jpg" "$HOME/Pictures/wall.jpg"
+        echo "$HOME/Pictures/wall.jpg" > "$HOME/.config/hypr/current_wallpaper" 2>/dev/null || true
+        ok "Default high-resolution Catppuccin wallpaper deployed!"
     fi
-else
-    ok "Wallpapers directory ready at ${WALLPAPER_DIR}"
+
+    # 2. Optionally clone the 120-wallpaper collection
+    WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
+    if [ ! -d "$WALLPAPER_DIR" ] && [ "$DRY_RUN" = false ]; then
+        if [ "$AUTO_YES" = true ]; then
+            info "Non-interactive mode: skipping full 120-wallpaper collection download."
+        else
+            read -rp "  Would you also like to download the full 120-wallpaper collection from GitHub (~200MB)? [y/N] " full_wp_choice
+            if [[ "$full_wp_choice" =~ ^[Yy]$ ]]; then
+                info "Cloning wallpapers to ${WALLPAPER_DIR}..."
+                git clone --depth 1 https://github.com/codemonkx/Wallpapers.git "$WALLPAPER_DIR" || warn "Could not clone wallpapers. You can download manually later."
+            fi
+        fi
+    else
+        ok "Wallpapers directory ready at ${WALLPAPER_DIR}"
+    fi
 fi
 
 # ─── 10. Enable System & User Services ────────────────────────────────────────
