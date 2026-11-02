@@ -139,6 +139,69 @@ hl.device({
     name = "epic-mouse-v1",
 })
 
+----------------------
+---- WINDOW RULES ----
+----------------------
+
+-- Picture-in-Picture
+hl.window_rule({
+    name = "pip",
+    match = { title = "(?i).*(picture-in-picture|picture in picture).*" },
+    float = true,
+    pin = true,
+    size = "640 360",
+    move = "100%-660 100%-380",
+})
+
+-- File Choosers & Modals
+hl.window_rule({
+    name = "file-dialogs",
+    match = { title = "^(Open File|Save File|Open Folder|Choose Files|Save As|Select a File|Confirm to replace files)$" },
+    float = true,
+    center = true,
+    size = "900 600",
+})
+
+-- System Utilities
+hl.window_rule({
+    name = "pavucontrol",
+    match = { class = "^(org.pulseaudio.pavucontrol|pavucontrol)$" },
+    float = true,
+    center = true,
+    size = "720 540",
+})
+
+hl.window_rule({
+    name = "nm-connection-editor",
+    match = { class = "^(nm-connection-editor)$" },
+    float = true,
+    center = true,
+    size = "680 500",
+})
+
+hl.window_rule({
+    name = "blueman-manager",
+    match = { class = "^(blueman-manager)$" },
+    float = true,
+    center = true,
+    size = "680 500",
+})
+
+hl.window_rule({
+    name = "file-roller",
+    match = { class = "^(org.gnome.FileRoller)$" },
+    float = true,
+    center = true,
+    size = "750 500",
+})
+
+hl.window_rule({
+    name = "xdg-desktop-portal-gtk",
+    match = { class = "^(xdg-desktop-portal-gtk)$" },
+    float = true,
+    center = true,
+})
+
 ---------------------
 ---- KEYBINDINGS ----
 ---------------------
