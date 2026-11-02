@@ -44,6 +44,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("gnome-keyring-daemon --start --components=secrets")
     hl.exec_cmd("~/.config/hypr/swaybg.sh")
     hl.exec_cmd("~/.config/hypr/quickshell.sh")
+    hl.exec_cmd("~/.config/hypr/clipboard.sh daemon")
 end)
 
 -------------------------------
@@ -207,6 +208,7 @@ hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("qs ipc call control openSettings"))
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind(mainMod .. " + escape", hl.dsp.exec_cmd("qs ipc call power toggle"))
 hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"))
+hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"))
 
 -- GNOME-style interactive screenshot overlay
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd("qs ipc call screenshot toggle"))

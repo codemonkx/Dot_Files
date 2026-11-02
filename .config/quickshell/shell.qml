@@ -12,8 +12,11 @@ Scope {
 
     Rounded {}
     Overlay {
-        isPanelOpen: mainBar.showControlPanel || mainBar.showFullPlayer || mainBar.showNotificationPanel || mainBar.showCalendar || mainBar.showAppLauncher || mainBar.showPowerMenu || mainBar.showWallpaperSelector
+        isPanelOpen: mainBar.showControlPanel || mainBar.showFullPlayer || mainBar.showNotificationPanel || mainBar.showCalendar || mainBar.showAppLauncher || mainBar.showPowerMenu || mainBar.showWallpaperSelector || clipboardManager.isOpen
     }
     ScreenSharePicker {}
     ScreenshotOverlay {}
+    ClipboardManager {
+        id: clipboardManager
+    }
 }
