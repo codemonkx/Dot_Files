@@ -60,14 +60,14 @@ PanelWindow {
     property bool confirmWipe: false
 
     // Windows Caret / Cursor Positioning
-    property int cardTargetX: Math.round((clipboardWindow.width > 0 ? clipboardWindow.width : 1920) - 420) / 2
-    property int cardTargetY: Math.round((clipboardWindow.height > 0 ? clipboardWindow.height : 1080) - 620) / 2
+    property int cardTargetX: Math.round((clipboardWindow.width > 0 ? clipboardWindow.width : 1920) - 380) / 2
+    property int cardTargetY: Math.round((clipboardWindow.height > 0 ? clipboardWindow.height : 1080) - 460) / 2
 
     function updatePosition(targetX, targetY) {
         let sw = (clipboardWindow.screen && clipboardWindow.screen.width > 0) ? clipboardWindow.screen.width : (clipboardWindow.width > 200 ? clipboardWindow.width : 1920)
         let sh = (clipboardWindow.screen && clipboardWindow.screen.height > 0) ? clipboardWindow.screen.height : (clipboardWindow.height > 200 ? clipboardWindow.height : 1080)
-        let cw = 420
-        let ch = 620
+        let cw = 380
+        let ch = 460
 
         let x = targetX - 20
         let y = targetY + 12
@@ -337,8 +337,8 @@ PanelWindow {
         id: panelCard
         x: clipboardWindow.cardTargetX
         y: clipboardWindow.cardTargetY
-        width: 420
-        height: 620
+        width: 380
+        height: 460
         radius: 12
         color: clipboardWindow.winBg
         border.color: clipboardWindow.winBorder
@@ -737,8 +737,8 @@ PanelWindow {
                         id: winCard
                         width: clipList.width
                         implicitHeight: {
-                            if (modelData.type === "image") return 140
-                            return Math.min(130, Math.max(54, cardContentCol.implicitHeight + 20))
+                            if (modelData.type === "image") return 110
+                            return Math.min(110, Math.max(50, cardContentCol.implicitHeight + 16))
                         }
                         radius: 8
                         color: index === clipboardWindow.selectedIndex ? clipboardWindow.winCardSelected : (cardHoverMa.containsMouse ? clipboardWindow.winCardHover : clipboardWindow.winCardBg)
