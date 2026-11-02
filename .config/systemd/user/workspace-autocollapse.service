@@ -1,0 +1,13 @@
+[Unit]
+Description=Hyprland Workspace Auto-Collapse Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.config/hypr/workspace_autocollapse.py
+Restart=always
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
