@@ -89,9 +89,15 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
 
 ---
 
-## 🚀 One-Line Installation
+## 🚀 Easy Setup & Installation
 
-Clone the repository and run the automated installer:
+You can install the entire desktop environment directly with a single command on any fresh Arch Linux or CachyOS installation:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/codemonkx/Dot_Files/main/install.sh)"
+```
+
+Or manually clone the repository and run the installer:
 
 ```bash
 git clone https://github.com/codemonkx/Dot_Files.git ~/.dotfiles
@@ -99,20 +105,24 @@ cd ~/.dotfiles
 ./install.sh
 ```
 
-### Installation Options:
-- `./install.sh` (default): Performs clean, standalone copy of all configurations to `~/.config/`.
-- `./install.sh --symlink`: Symlinks configuration directories from the repository to `~/.config/` (ideal for active git development).
-- `./install.sh --yes`: Non-interactive deployment (great for automated script testing & VM spins).
+### Installation Modes:
+- `./install.sh` (Interactive Menu): Choose between Full Setup, Symlink Mode, Configs Only, or Packages Only.
+- `./install.sh --copy` (or `-c`): Copies all configurations cleanly to `~/.config/`.
+- `./install.sh --symlink` (or `-s`): Symlinks configuration directories from the repository to `~/.config/` (ideal for active git development).
+- `./install.sh --config-only` (or `-co`): Deploys latest configs & fonts without re-installing system packages.
+- `./install.sh --pkgs-only` (or `-po`): Installs all required official and AUR packages and enables services.
+- `./install.sh --yes` (or `-y`): Non-interactive deployment (great for automated script testing & VM spins).
 - `./install.sh --dry-run`: Preview actions and check system compatibility without altering files.
 
 ### What the installer handles automatically:
-1. **Hardware & VM Detection:** Detects whether you are running on bare metal or inside a Virtual Machine (QEMU, KVM, VirtualBox, VMware) and auto-configures display scaling and software cursors.
-2. **Zero-Touch AUR Bootstrapping:** Automatically installs `yay-bin` if no AUR helper is present on the system.
-3. **Typography & Font Cache:** Deploys bundled custom fonts (`Rowdies-Bold`, `Font Awesome 6 Pro`, `Inter`, `PixelifySans`) directly into `~/.local/share/fonts/kadal` and runs `fc-cache -f`.
-4. **Configuration Deployment & Backup:** Creates a timestamped backup of existing configs in `~/.config_backup_<timestamp>/` before deploying.
-5. **Desktop & Wallpaper Initialization:** Bundles and initializes a default high-resolution wallpaper (`~/Pictures/wall.jpg`) for immediate zero-touch first boot, with an optional prompt to clone the full 120-wallpaper pack.
-6. **Background Services & Audio:** Enables `pipewire`, `wireplumber`, `pipewire-pulse`, `power-profiles-daemon`, and `bluetooth`.
-7. **Post-Install Validation:** Automatically runs `hyprland --verify-config`, tests font availability, and confirms clipboard daemons.
+1. **Self-Bootstrapping:** Automatically clones the repository if piped through curl into bash.
+2. **Hardware & VM Detection:** Detects whether you are running on bare metal, ASUS gaming laptops (auto-configures GHelper sudoers privileges), or Virtual Machines (auto-configures software cursors).
+3. **Zero-Touch AUR Bootstrapping:** Automatically installs `yay-bin` or uses `paru` if an AUR helper is missing.
+4. **Typography & Font Cache:** Deploys bundled custom fonts (`Inter`, `Font Awesome 6 Pro`, `PixelifySans`, `Rowdies`) directly into `~/.local/share/fonts/kadal` and runs `fc-cache -f`.
+5. **Configuration Deployment & Backup:** Creates a timestamped backup of existing configs in `~/.config_backup_<timestamp>/` before deploying.
+6. **Desktop & Wallpaper Initialization:** Bundles and initializes a default high-resolution wallpaper (`~/Pictures/wall.jpg`) for immediate zero-touch first boot, with an optional prompt to clone the full 120-wallpaper pack.
+7. **Background Services & Audio:** Enables `pipewire`, `wireplumber`, `pipewire-pulse`, `power-profiles-daemon`, `bluetooth`, `paccache.timer`, and the **`workspace-autocollapse.service`** (Dynamic Gap Elimination).
+8. **Post-Install Health Validation:** Automatically verifies `hyprland --verify-config`, tests font availability, Quickshell status, and confirms clipboard and workspace daemons.
 
 ---
 
