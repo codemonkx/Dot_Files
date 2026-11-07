@@ -31,6 +31,9 @@ palette = 15=#ffffff
 font-family = JetBrainsMono Nerd Font
 font-size = 12
 
-# Padding to match kitty.conf window_padding_width 10
+# Window styling & behavior
+window-decoration = false
+confirm-close-surface = false
+mouse-hide-while-typing = true
 window-padding-x = 10
 window-padding-y = 10

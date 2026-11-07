@@ -61,6 +61,7 @@ hl.env("XDG_SESSION_TYPE", "wayland")
 hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 hl.env("XCURSOR_THEME", "phinger-cursors-light")
 hl.env("HYPRCURSOR_THEME", "phinger-cursors-light")
+hl.env("TERMINAL", "ghostty")
 
 -- GPU selection lives in ~/.config/environment.d/gpu.conf (env= here is too late).
 -- NOTE: use only plain /dev/dri/cardN paths there. Do NOT use
@@ -208,6 +209,7 @@ hl.window_rule({
 ---------------------
 
 -- Applications & Windows
+hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + SHIFT + E", hl.dsp.exit())
