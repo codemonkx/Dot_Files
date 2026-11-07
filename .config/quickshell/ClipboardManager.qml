@@ -32,23 +32,23 @@ PanelWindow {
     }
 
     // ─── Windows 11 Fluent Dark / Catppuccin Sapphire Palette ───
-    property color winBg: "#1F1F24"
-    property color winBgMica: "#1B1B20"
-    property color winSearchBg: "#2B2B32"
-    property color winCardBg: "#292930"
-    property color winCardHover: "#32323B"
-    property color winCardSelected: "#383846"
-    property color winBorder: "#383842"
-    property color winSubtleBorder: "#2E2E36"
-    property color fgColor: "#F3F3F5"
-    property color fgMuted: "#A8A8B4"
-    property color fgSubtle: "#757582"
-    property color accentColor: "#89B4FA" // Windows / Sapphire Cyan Accent
+    property color winBg: "#121213"
+    property color winBgMica: "#121213"
+    property color winSearchBg: "#1E1E1E"
+    property color winCardBg: "#1E1E1E"
+    property color winCardHover: "#28282D"
+    property color winCardSelected: "#313244"
+    property color winBorder: "#313244"
+    property color winSubtleBorder: "#25252A"
+    property color fgColor: "#CDD6F4"
+    property color fgMuted: "#A6ADC8"
+    property color fgSubtle: "#6C7086"
+    property color accentColor: "#89B4FA" // Sapphire Accent
     property color accentGlow: "#B4BEFE"
     property color dangerColor: "#F38BA8"
     property color pinColor: "#F9E2AF"
 
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property string textFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
 

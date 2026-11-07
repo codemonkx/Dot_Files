@@ -35,7 +35,7 @@ PanelWindow {
     property color fgColor: "#CDD6F4"
     property color accentColor: "#89B4FA"
     property color accentColorGlow: "#B4BEFE"
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
     property int barHeight: 40
 

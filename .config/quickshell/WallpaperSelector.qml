@@ -38,7 +38,7 @@ PanelWindow {
     property color accentColorGlow: "#B4BEFE"
     property color successColor: "#A6E3A1"
     property color errorColor: "#F38BA8"
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
     property int barHeight: 40
 

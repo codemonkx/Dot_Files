@@ -65,7 +65,7 @@ Scope {
     property color fgColor: "#CDD6F4"
     property color accentColor: "#89B4FA"
     property color accentColorGlow: "#B4BEFE"
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
     // ─── Media Player Logic ──────────────────────────────────
     property var activePlayer: findActivePlayer()
@@ -134,7 +134,7 @@ Scope {
                 Text {
                     anchors.centerIn: parent
                     color: root.showCalendar ? root.accentColorGlow : root.accentColor
-                    font { family: root.mainFont; pixelSize: Math.round(13 * root.barScale) }
+                    font { family: root.mainFont; pixelSize: Math.round(13 * root.barScale); weight: Font.DemiBold }
                     text: Qt.formatDateTime(new Date(), "hh:mm A")
 
                     Timer {
@@ -685,9 +685,9 @@ Scope {
     radius: Math.round(30 * root.barScale)
 
     
-    // 1. Timer to poll data every 2 seconds
+    // 1. Timer to poll data every 3.5 seconds (battery optimized)
     Timer {
-        interval: 2000
+        interval: 3500
         running: true
         repeat: true
         onTriggered: {

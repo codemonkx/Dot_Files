@@ -8,7 +8,7 @@ PanelWindow {
 
     // ─── Scale & Configuration ────────────────────────────────
     property real clockScale: 1.2
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property color accentColor: "#89B4FA"
     property color accentColorGlow: "#B4BEFE"
     property int dotSize: Math.round(8 * clockScale)

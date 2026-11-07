@@ -13,7 +13,7 @@ PanelWindow {
     property color fgColor: "#CDD6F4"
     property color accentColor: "#89B4FA"
     property color accentColorGlow: "#B4BEFE"
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
 
     signal openPanelRequested()
@@ -177,8 +177,8 @@ PanelWindow {
                     topRightRadius: 0
                     bottomLeftRadius: 18
                     bottomRightRadius: 18
-                    border.width: 0
-                    border.color: "transparent"
+                    border.width: 1
+                    border.color: "#313244"
 
                     layer.enabled: true
                     layer.effect: MultiEffect {

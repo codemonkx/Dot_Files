@@ -20,7 +20,7 @@ PanelWindow {
     property color fgColor: "#CDD6F4"
     property color accentColor: "#89B4FA"
     property color accentColorGlow: "#B4BEFE"
-    property string mainFont: "Rowdies"
+    property string mainFont: "Inter"
     property string iconFont: "JetBrainsMono NF"
     property int barHeight: 40
 
@@ -324,8 +324,8 @@ PanelWindow {
             bottomLeftRadius: 24
             bottomRightRadius: 24
             color: notificationPanelWindow.bgColor
-            border.width: 0
-            border.color: "#2C2C30"
+            border.width: 1
+            border.color: "#313244"
 
             layer.enabled: true
             layer.effect: MultiEffect {

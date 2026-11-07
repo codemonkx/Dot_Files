@@ -74,14 +74,14 @@ hl.env("HYPRCURSOR_THEME", "phinger-cursors-light")
 -- Refer to https://wiki.hypr.land/Configuring/Basics/Variables/
 hl.config({
     general = {
-        gaps_in  = 1,
-        gaps_out = 3,
-        border_size = 3,
+        gaps_in  = 5,
+        gaps_out = 8,
+        border_size = 2,
         layout = "dwindle",
         allow_tearing = false,
         col = {
-            active_border   = "rgba(121212ee)",
-            inactive_border = "rgba(1E1E1Eaa)",
+            active_border   = "rgba(89b4faee)",
+            inactive_border = "rgba(313244aa)",
         },
     },
 
@@ -125,12 +125,12 @@ hl.curve("myBezier", {
     points = { { 0.05, 0.9 }, { 0.1, 1.05 } },
 })
 
-hl.animation({ leaf = "windows",     enabled = true, speed = 4, bezier = "default", style = "popin 10%" })
-hl.animation({ leaf = "windowsOut",  enabled = true, speed = 3, bezier = "default", style = "popin 80%" })
-hl.animation({ leaf = "border",      enabled = true, speed = 4, bezier = "default" })
-hl.animation({ leaf = "borderangle", enabled = true, speed = 8, bezier = "default" })
-hl.animation({ leaf = "fade",        enabled = true, speed = 4, bezier = "default" })
-hl.animation({ leaf = "workspaces",  enabled = true, speed = 4, bezier = "default" })
+hl.animation({ leaf = "windows",     enabled = true, speed = 4, bezier = "myBezier", style = "popin 80%" })
+hl.animation({ leaf = "windowsOut",  enabled = true, speed = 3, bezier = "myBezier", style = "popin 80%" })
+hl.animation({ leaf = "border",      enabled = true, speed = 4, bezier = "myBezier" })
+hl.animation({ leaf = "borderangle", enabled = true, speed = 8, bezier = "myBezier" })
+hl.animation({ leaf = "fade",        enabled = true, speed = 4, bezier = "myBezier" })
+hl.animation({ leaf = "workspaces",  enabled = true, speed = 4, bezier = "myBezier" })
 
 -----------------
 ---- DEVICES ----
@@ -210,11 +210,11 @@ hl.window_rule({
 -- Applications & Windows
 hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
-hl.bind(mainMod .. " + SHIFT + E", hl.dsp.exec_cmd("hyprctl dispatch exit"))
+hl.bind(mainMod .. " + SHIFT + E", hl.dsp.exit())
 hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd("~/.config/hypr/refresh.sh"))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
-hl.bind(mainMod .. " + F", hl.dsp.exec_cmd("hyprctl dispatch fullscreen 0"))
-hl.bind(mainMod .. " + SHIFT + F", hl.dsp.exec_cmd("hyprctl dispatch fullscreen 1"))
+hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen(0))
+hl.bind(mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen(1))
 hl.bind(mainMod .. " + SHIFT + SPACE", hl.dsp.window.float())
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("brave"))
