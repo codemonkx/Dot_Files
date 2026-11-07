@@ -166,11 +166,22 @@ Scope {
             }
 
             Rectangle {
+                id: workspacesCapsule
                 implicitWidth: (wsRow.implicitWidth ?? 0) + Math.round(24 * root.barScale)
                 implicitHeight: Math.round(26 * root.barScale)
                 anchors.verticalCenter: parent.verticalCenter
                 color: root.bgColor2
                 radius: Math.round(30 * root.barScale)
+
+                // Mouse wheel support for workspace scrolling
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    onWheel: (wheel) => {
+                        let target = wheel.angleDelta.y > 0 ? "e-1" : "e+1"
+                        Quickshell.execDetached(["sh", "-c", "hyprctl dispatch 'hl.dsp.focus({ workspace = \"" + target + "\" })' 2>/dev/null || hyprctl dispatch workspace " + target])
+                    }
+                }
                 
                 Row {
                     id: wsRow
@@ -209,7 +220,9 @@ Scope {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Hyprland.dispatch("workspace " + modelData.id)
+                                onClicked: {
+                                    Quickshell.execDetached(["sh", "-c", "hyprctl dispatch 'hl.dsp.focus({ workspace = " + modelData.id + " })' 2>/dev/null || hyprctl dispatch workspace " + modelData.id])
+                                }
                             }
                         }
                     }
