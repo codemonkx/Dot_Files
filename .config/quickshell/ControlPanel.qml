@@ -75,6 +75,8 @@ PanelWindow {
     property bool naturalScrollEnabled: true
     property bool tapToClickEnabled: true
     property bool settingsLoading: false
+    property string cpuModel: "11th Gen Intel Core i5-11400H"
+    property string gpuModel: "NVIDIA GeForce RTX 3050 Laptop GPU"
     readonly property real micVolume: (Pipewire.defaultAudioSource && Pipewire.defaultAudioSource.audio) ? Pipewire.defaultAudioSource.audio.volume : 0.45
     readonly property bool micMuted: (Pipewire.defaultAudioSource && Pipewire.defaultAudioSource.audio) ? Pipewire.defaultAudioSource.audio.muted : false
     property string settingsTab: "power"
@@ -243,7 +245,7 @@ PanelWindow {
     // 5. Bluetooth Toggle
     Process {
         id: btToggleProc
-        command: ["sh", "-c", "if bluetoothctl show 2>/dev/null | grep -q 'Powered: yes'; then bluetoothctl power off; else rfkill unblock bluetooth 2>/dev/null; bluetoothctl power on; fi"]
+        command: ["sh", "-c", "if bluetoothctl show 2>/dev/null | grep -q 'Powered: yes'; then bluetoothctl power off; else rfkill unblock bluetooth 2>/dev/null; bluetoothctl power on; bluetoothctl pairable on; fi"]
         onExited: {
             btStatusProc.running = true
             if (controlPanelWindow.currentView === "bluetooth") {
@@ -333,7 +335,14 @@ PanelWindow {
                     let isPaired = pairedMacs.indexOf(mac) !== -1
                     list.push({ mac: mac, name: name, connected: isConn, paired: isPaired })
                 }
-                list.sort((a, b) => (b.connected ? 1 : 0) - (a.connected ? 1 : 0) || (b.paired ? 1 : 0) - (a.paired ? 1 : 0))
+                list.sort((a, b) => {
+                    if (b.connected !== a.connected) return (b.connected ? 1 : 0) - (a.connected ? 1 : 0)
+                    if (b.paired !== a.paired) return (b.paired ? 1 : 0) - (a.paired ? 1 : 0)
+                    let aRawMac = !a.name || Boolean(a.name.replace(/[-:]/g, "").match(/^[0-9A-Fa-f]{12}$/))
+                    let bRawMac = !b.name || Boolean(b.name.replace(/[-:]/g, "").match(/^[0-9A-Fa-f]{12}$/))
+                    if (aRawMac !== bRawMac) return aRawMac ? 1 : -1
+                    return (a.name || "").localeCompare(b.name || "")
+                })
                 controlPanelWindow.btDevices = list
             }
         }
@@ -342,10 +351,25 @@ PanelWindow {
     // 8. Bluetooth Active Scan Process
     Process {
         id: btScanProc
-        command: ["timeout", "8", "bluetoothctl", "scan", "on"]
+        command: ["bluetoothctl", "--timeout", "8", "scan", "on"]
         onExited: {
             controlPanelWindow.btScanning = false
-            btListProc.running = true
+            if (!btListProc.running) {
+                btListProc.running = true
+            }
+        }
+    }
+
+    // Bluetooth Live Scan Polling Timer
+    Timer {
+        id: btScanPollTimer
+        interval: 1500
+        repeat: true
+        running: controlPanelWindow.btScanning
+        onTriggered: {
+            if (!btListProc.running) {
+                btListProc.running = true
+            }
         }
     }
 
@@ -459,9 +483,14 @@ PanelWindow {
     }
 
     function refreshBtDevices() {
-        btScanning = true
-        btListProc.running = true
-        btScanProc.running = true
+        if (!controlPanelWindow.btEnabled) {
+            controlPanelWindow.btDevices = []
+            controlPanelWindow.btScanning = false
+            return
+        }
+        controlPanelWindow.btScanning = true
+        if (!btListProc.running) btListProc.running = true
+        if (!btScanProc.running) btScanProc.running = true
     }
 
     function openBtView() {
@@ -477,7 +506,7 @@ PanelWindow {
         } else if (isPaired) {
             Quickshell.execDetached(["bluetoothctl", "connect", mac])
         } else {
-            Quickshell.execDetached(["sh", "-c", `bluetoothctl pair ${mac} && bluetoothctl trust ${mac} && bluetoothctl connect ${mac}`])
+            Quickshell.execDetached(["sh", "-c", `bluetoothctl pairable on 2>/dev/null; bluetoothctl pair ${mac} && bluetoothctl trust ${mac} && bluetoothctl connect ${mac}`])
         }
         btRefreshTimer.restart()
     }
@@ -696,7 +725,7 @@ PanelWindow {
     // 11. Settings Query Process
     Process {
         id: settingsQueryProc
-        command: ["sh", "-c", "echo '===POWER==='; powerprofilesctl get 2>/dev/null || echo 'performance'; echo '===REFRESH==='; hyprctl monitors 2>/dev/null | grep -o '1920x1080@[0-9]*' | head -1 | cut -d@ -f2 || echo '144'; echo '===CAFFEINE==='; ps -C hypridle -o state= 2>/dev/null | grep -q 'T' && echo '1' || echo '0'; echo '===NIGHTLIGHT==='; hyprctl getoption decoration:screen_shader 2>/dev/null | grep -q 'str: .\\+' && echo '1' || echo '0'; echo '===BLUR==='; hyprctl getoption decoration:blur:enabled 2>/dev/null | grep -q 'int: 1' && echo '1' || echo '0'; echo '===ANIM==='; hyprctl getoption animations:enabled 2>/dev/null | grep -q 'int: 1' && echo '1' || echo '0'; echo '===NATURAL==='; hyprctl getoption input:touchpad:natural_scroll 2>/dev/null | grep -q 'int: 1' && echo '1' || echo '0'; echo '===TAP==='; hyprctl getoption input:touchpad:tap-to-click 2>/dev/null | grep -q 'int: 1' && echo '1' || echo '0'"]
+        command: ["sh", "-c", "echo '===POWER==='; powerprofilesctl get 2>/dev/null || echo 'performance'; echo '===REFRESH==='; hyprctl monitors -j 2>/dev/null | grep -o '\"refreshRate\": [0-9.]*' | head -1 | cut -d: -f2 | cut -d. -f1 | tr -d ' ' || echo '144'; echo '===CAFFEINE==='; ps -C hypridle -o state= 2>/dev/null | grep -q 'T' && echo '1' || echo '0'; echo '===NIGHTLIGHT==='; hyprctl getoption decoration:screen_shader 2>/dev/null | grep -q 'str: .\\+' && echo '1' || echo '0'; echo '===BLUR==='; hyprctl getoption decoration:blur:enabled 2>/dev/null | grep -E -q 'bool: true|int: 1' && echo '1' || echo '0'; echo '===ANIM==='; hyprctl getoption animations:enabled 2>/dev/null | grep -E -q 'bool: true|int: 1' && echo '1' || echo '0'; echo '===NATURAL==='; hyprctl getoption input:touchpad:natural_scroll 2>/dev/null | grep -E -q 'bool: true|int: 1' && echo '1' || echo '0'; echo '===TAP==='; hyprctl getoption input:touchpad:tap-to-click 2>/dev/null | grep -E -q 'bool: true|int: 1' && echo '1' || echo '0'; echo '===CPU==='; lscpu 2>/dev/null | grep 'Model name' | head -1 | cut -d: -f2 | xargs || echo '11th Gen Intel i5-11400H'; echo '===GPU==='; nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo 'NVIDIA GeForce RTX 3050'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 controlPanelWindow.settingsLoading = false
@@ -723,6 +752,12 @@ PanelWindow {
 
                 let tMatch = text.match(/===TAP===\s*([^\n\r]+)/)
                 if (tMatch) controlPanelWindow.tapToClickEnabled = (tMatch[1].trim() === "1")
+
+                let cpuMatch = text.match(/===CPU===\s*([^\n\r]+)/)
+                if (cpuMatch) controlPanelWindow.cpuModel = cpuMatch[1].trim()
+
+                let gpuMatch = text.match(/===GPU===\s*([^\n\r]+)/)
+                if (gpuMatch) controlPanelWindow.gpuModel = gpuMatch[1].trim()
             }
         }
     }
@@ -755,36 +790,33 @@ PanelWindow {
 
     function setRefreshRate(hz) {
         controlPanelWindow.currentRefreshRate = hz
-        Quickshell.execDetached(["hyprctl", "keyword", "monitor", `eDP-1,1920x1080@${hz},0x0,1`])
+        Quickshell.execDetached(["hyprctl", "repl", `hl.monitor({ output = 'eDP-1', mode = '1920x1080@${hz}', position = '0x0', scale = 1 })`])
     }
 
     function toggleNightLight() {
         controlPanelWindow.nightLightActive = !controlPanelWindow.nightLightActive
-        if (controlPanelWindow.nightLightActive) {
-            Quickshell.execDetached(["hyprctl", "keyword", "decoration:screen_shader", Quickshell.env("HOME") + "/.config/hypr/shaders/night-light.frag"])
-        } else {
-            Quickshell.execDetached(["hyprctl", "keyword", "decoration:screen_shader", ""])
-        }
+        let shader = controlPanelWindow.nightLightActive ? (Quickshell.env("HOME") + "/.config/hypr/shaders/night-light.frag") : ""
+        Quickshell.execDetached(["hyprctl", "repl", `hl.config({ decoration = { screen_shader = '${shader}' } })`])
     }
 
     function toggleBlur() {
         controlPanelWindow.blurEnabled = !controlPanelWindow.blurEnabled
-        Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:enabled", controlPanelWindow.blurEnabled ? "1" : "0"])
+        Quickshell.execDetached(["hyprctl", "repl", `hl.config({ decoration = { blur = { enabled = ${controlPanelWindow.blurEnabled ? "true" : "false"} } } })`])
     }
 
     function toggleAnimations() {
         controlPanelWindow.animationsEnabled = !controlPanelWindow.animationsEnabled
-        Quickshell.execDetached(["hyprctl", "keyword", "animations:enabled", controlPanelWindow.animationsEnabled ? "1" : "0"])
+        Quickshell.execDetached(["hyprctl", "repl", `hl.config({ animations = { enabled = ${controlPanelWindow.animationsEnabled ? "true" : "false"} } })`])
     }
 
     function toggleNaturalScroll() {
         controlPanelWindow.naturalScrollEnabled = !controlPanelWindow.naturalScrollEnabled
-        Quickshell.execDetached(["hyprctl", "keyword", "input:touchpad:natural_scroll", controlPanelWindow.naturalScrollEnabled ? "1" : "0"])
+        Quickshell.execDetached(["hyprctl", "repl", `hl.config({ input = { touchpad = { natural_scroll = ${controlPanelWindow.naturalScrollEnabled ? "true" : "false"} } } })`])
     }
 
     function toggleTapToClick() {
-        tapToClickEnabled = !tapToClickEnabled
-        Quickshell.execDetached(["hyprctl", "keyword", "input:touchpad:tap-to-click", tapToClickEnabled ? "1" : "0"])
+        controlPanelWindow.tapToClickEnabled = !controlPanelWindow.tapToClickEnabled
+        Quickshell.execDetached(["hyprctl", "repl", `hl.config({ input = { touchpad = { tap_to_click = ${controlPanelWindow.tapToClickEnabled ? "true" : "false"} } } })`])
     }
 
     function setMicVolume(ratio) {
@@ -991,8 +1023,8 @@ PanelWindow {
         // ─── CARD CONTAINER ───────────────────────────────────
         Rectangle {
             id: cardContainer
-            width: 360
-            height: controlPanelWindow.currentView === "main" ? Math.max(316, Math.round(mainViewLayout.implicitHeight + 40)) : (controlPanelWindow.currentView === "settings" ? Math.max(316, Math.round(settingsViewLayout.implicitHeight + 40)) : 380)
+            width: controlPanelWindow.currentView === "settings" ? 420 : 360
+            height: controlPanelWindow.currentView === "main" ? Math.max(316, Math.round(mainViewLayout.implicitHeight + 40)) : (controlPanelWindow.currentView === "settings" ? Math.min(840, Math.round(settingsViewLayout.implicitHeight + 40)) : 380)
             topLeftRadius: 0
             topRightRadius: 0
             bottomLeftRadius: 24
@@ -1001,6 +1033,13 @@ PanelWindow {
             border.width: 1
             border.color: "#313244"
             clip: true
+
+            Behavior on width {
+                NumberAnimation {
+                    duration: 200
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             Behavior on height {
                 NumberAnimation {
@@ -1120,7 +1159,10 @@ PanelWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.openSettingsView()
+                            onClicked: {
+                                controlPanelWindow.closeRequested()
+                                Quickshell.execDetached(["qs", "ipc", "call", "settings", "open"])
+                            }
                         }
                     }
 
@@ -3007,38 +3049,44 @@ PanelWindow {
                 }
             }
 
-            // ─── Settings Subview Layout ──────────────────────
-            ColumnLayout {
+            // ─── Settings Subview Layout (Complete Linux Desktop Control Center) ──────────
+            Item {
                 id: settingsViewLayout
                 anchors {
-                    top: parent.top
-                    left: parent.left
-                    right: parent.right
-                    topMargin: 20
+                    fill: parent
+                    topMargin: 16
+                    bottomMargin: 14
                     leftMargin: 16
                     rightMargin: 16
                 }
-                spacing: 14
                 visible: controlPanelWindow.currentView === "settings"
+                implicitHeight: Math.min(820, settingsContentCol.implicitHeight + headerRow.implicitHeight + 36)
 
-                // ─── 1. Header Row (Back Pill & Actions) ─────────
+                // ─── 1. Header Bar ───────────────────────────────
                 RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 28
+                    id: headerRow
+                    anchors {
+                        top: parent.top
+                        left: parent.left
+                        right: parent.right
+                    }
+                    height: 32
 
-                    // Back capsule pill (mirrors Battery pill aesthetic)
+                    // Back Button (capsule pill)
                     Rectangle {
-                        implicitWidth: backRow.implicitWidth + 22
+                        implicitWidth: backRow.implicitWidth + 20
                         implicitHeight: 28
                         radius: 14
-                        color: backSettingsArea.containsMouse ? Qt.lighter(controlPanelWindow.bgColor2, 1.35) : controlPanelWindow.bgColor2
-
+                        color: backArea.containsMouse ? "#2A2A3C" : "#1A1A26"
+                        border.width: 1
+                        border.color: backArea.containsMouse ? controlPanelWindow.accentColor : "#2E2E3E"
                         Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
 
                         Row {
                             id: backRow
                             anchors.centerIn: parent
-                            spacing: 7
+                            spacing: 6
 
                             Text {
                                 text: "\uf060" // arrow-left
@@ -3048,15 +3096,15 @@ PanelWindow {
                             }
 
                             Text {
-                                text: "Settings"
-                                font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                color: controlPanelWindow.fgColor
+                                text: "Back"
+                                font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                color: "#CDD6F4"
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
 
                         MouseArea {
-                            id: backSettingsArea
+                            id: backArea
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -3064,14 +3112,39 @@ PanelWindow {
                         }
                     }
 
+                    // Title & Icon
+                    Row {
+                        Layout.leftMargin: 4
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: 8
+
+                        Text {
+                            text: "\uf013" // gear
+                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 14 }
+                            color: controlPanelWindow.accentColor
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            text: "System Settings"
+                            font { family: "Inter"; pixelSize: 13; weight: Font.Bold }
+                            color: "#FFFFFF"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
                     Item { Layout.fillWidth: true }
 
-                    // Refresh Button (28x28 circle)
+                    // Refresh Button
                     Rectangle {
                         width: 28
                         height: 28
                         radius: 14
-                        color: refreshSettingsArea.containsMouse ? Qt.lighter(controlPanelWindow.bgColor2, 1.4) : controlPanelWindow.bgColor2
+                        color: refreshArea.containsMouse ? "#2A2A3C" : "#1A1A26"
+                        border.width: 1
+                        border.color: refreshArea.containsMouse ? controlPanelWindow.accentColor : "#2E2E3E"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
 
                         Text {
                             anchors.centerIn: parent
@@ -3083,7 +3156,7 @@ PanelWindow {
                         }
 
                         MouseArea {
-                            id: refreshSettingsArea
+                            id: refreshArea
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -3091,18 +3164,22 @@ PanelWindow {
                         }
                     }
 
-                    // Close Button (28x28 circle)
+                    // Close Button
                     Rectangle {
                         width: 28
                         height: 28
                         radius: 14
-                        color: closeSettingsArea.containsMouse ? Qt.lighter(controlPanelWindow.bgColor2, 1.4) : controlPanelWindow.bgColor2
+                        color: closeSettingsArea.containsMouse ? "#3A222C" : "#1A1A26"
+                        border.width: 1
+                        border.color: closeSettingsArea.containsMouse ? "#F38BA8" : "#2E2E3E"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
 
                         Text {
                             anchors.centerIn: parent
                             text: "\uf00d" // times
                             font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
-                            color: closeSettingsArea.containsMouse ? "#FFFFFF" : controlPanelWindow.fgColor
+                            color: closeSettingsArea.containsMouse ? "#F38BA8" : controlPanelWindow.fgColor
                         }
 
                         MouseArea {
@@ -3115,514 +3192,1102 @@ PanelWindow {
                     }
                 }
 
-                // ─── 2. GNOME-Style Quick Toggles Grid (2x3) ───
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 2
-                    rowSpacing: 10
-                    columnSpacing: 10
-
-                    // ── 1. Night Light Pill ──
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: 16
-                        color: controlPanelWindow.nightLightActive ? controlPanelWindow.accentColor : controlPanelWindow.bgColor2
-                        Behavior on color { ColorAnimation { duration: 180 } }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.toggleNightLight()
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: 14
-                                rightMargin: 14
-                            }
-                            spacing: 12
-
-                            Text {
-                                text: "\uf186" // moon
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 15 }
-                                color: controlPanelWindow.nightLightActive ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                Text {
-                                    text: "Night Light"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.nightLightActive ? controlPanelWindow.bgColor : "#FFFFFF"
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: controlPanelWindow.nightLightActive ? "Active" : "Warm Filter"
-                                    font { family: "Inter"; pixelSize: 11 }
-                                    color: controlPanelWindow.nightLightActive ? Qt.darker(controlPanelWindow.bgColor, 1.4) : controlPanelWindow.fgColor
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
+                // ─── 2. Scrollable Settings Content ──────────────
+                Flickable {
+                    id: settingsFlickable
+                    anchors {
+                        top: headerRow.bottom
+                        topMargin: 12
+                        left: parent.left
+                        right: parent.right
+                        bottom: parent.bottom
                     }
+                    contentWidth: width
+                    contentHeight: settingsContentCol.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
 
-                    // ── 2. Caffeine Mode Pill ──
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: 16
-                        color: controlPanelWindow.caffeineActive ? controlPanelWindow.accentColor : controlPanelWindow.bgColor2
-                        Behavior on color { ColorAnimation { duration: 180 } }
+                    ColumnLayout {
+                        id: settingsContentCol
+                        width: parent.width
+                        spacing: 12
 
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.toggleCaffeine()
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: 14
-                                rightMargin: 14
-                            }
-                            spacing: 12
-
-                            Text {
-                                text: "\uf0f4" // coffee
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 15 }
-                                color: controlPanelWindow.caffeineActive ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                            }
+                        // ══════════════════════════════════════════
+                        // SECTION A: POWER & PERFORMANCE
+                        // ══════════════════════════════════════════
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: powerSectionCol.implicitHeight + 20
+                            radius: 14
+                            color: "#161620"
+                            border.width: 1
+                            border.color: "#2C2C3C"
 
                             ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                Text {
-                                    text: "Caffeine"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.caffeineActive ? controlPanelWindow.bgColor : "#FFFFFF"
-                                    elide: Text.ElideRight
+                                id: powerSectionCol
+                                anchors {
+                                    top: parent.top
+                                    left: parent.left
+                                    right: parent.right
+                                    margins: 10
                                 }
+                                spacing: 10
 
-                                Text {
+                                // Section Header Row
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: controlPanelWindow.caffeineActive ? "Inhibit Sleep" : "Off"
-                                    font { family: "Inter"; pixelSize: 11 }
-                                    color: controlPanelWindow.caffeineActive ? Qt.darker(controlPanelWindow.bgColor, 1.4) : controlPanelWindow.fgColor
-                                    elide: Text.ElideRight
+                                    spacing: 6
+
+                                    Text {
+                                        text: "\uf0e7" // bolt
+                                        font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                        color: controlPanelWindow.accentColor
+                                    }
+
+                                    Text {
+                                        text: "POWER & PERFORMANCE"
+                                        font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                        color: "#A6ADC8"
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    // Active Profile Badge
+                                    Rectangle {
+                                        implicitWidth: pBadgeText.implicitWidth + 14
+                                        implicitHeight: 18
+                                        radius: 9
+                                        color: controlPanelWindow.currentPowerProfile === "performance" ? "#2E1C28" : (controlPanelWindow.currentPowerProfile === "balanced" ? "#1B283C" : "#1B2C24")
+                                        border.width: 1
+                                        border.color: controlPanelWindow.currentPowerProfile === "performance" ? "#F38BA8" : (controlPanelWindow.currentPowerProfile === "balanced" ? controlPanelWindow.accentColor : "#A6E3A1")
+
+                                        Text {
+                                            id: pBadgeText
+                                            anchors.centerIn: parent
+                                            text: controlPanelWindow.currentPowerProfile === "performance" ? "⚡ Performance" : (controlPanelWindow.currentPowerProfile === "balanced" ? "⚖ Balanced" : "🍃 Saver")
+                                            font { family: "Inter"; pixelSize: 9; weight: Font.Bold }
+                                            color: controlPanelWindow.currentPowerProfile === "performance" ? "#F38BA8" : (controlPanelWindow.currentPowerProfile === "balanced" ? controlPanelWindow.accentColor : "#A6E3A1")
+                                        }
+                                    }
+                                }
+
+                                // Hardware & Battery Summary Pill
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 30
+                                    radius: 8
+                                    color: "#1A1A26"
+                                    border.width: 1
+                                    border.color: "#242434"
+
+                                    RowLayout {
+                                        anchors {
+                                            fill: parent
+                                            leftMargin: 10
+                                            rightMargin: 10
+                                        }
+                                        spacing: 8
+
+                                        // Battery Icon + Level
+                                        Row {
+                                            spacing: 5
+                                            Layout.alignment: Qt.AlignVCenter
+                                            Text {
+                                                text: {
+                                                    let pct = Math.round(UPower.displayDevice.percentage * 100)
+                                                    if (UPower.onBattery) {
+                                                        if (pct <= 20) return "\uf244"
+                                                        if (pct <= 50) return "\uf243"
+                                                        if (pct <= 75) return "\uf242"
+                                                        return "\uf240"
+                                                    }
+                                                    return "\uf0e7"
+                                                }
+                                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
+                                                color: UPower.onBattery ? "#CDD6F4" : "#A6E3A1"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text {
+                                                text: `${Math.round(UPower.displayDevice.percentage * 100)}% ${UPower.onBattery ? "Battery" : "Charging"}`
+                                                font { family: "Inter"; pixelSize: 10; weight: Font.DemiBold }
+                                                color: "#BAC2DE"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        // Hardware Specs Tag
+                                        Text {
+                                            text: "i5-11400H • RTX 3050"
+                                            font { family: "Inter"; pixelSize: 9; weight: Font.Medium }
+                                            color: "#89B4FA"
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+                                    }
+                                }
+
+                                // 3-Way Sliding Segmented Control
+                                Rectangle {
+                                    id: powerSegBar
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 38
+                                    radius: 11
+                                    color: "#121218"
+                                    border.width: 1
+                                    border.color: "#242432"
+
+                                    // Sliding active pill
+                                    Rectangle {
+                                        id: powerActivePill
+                                        width: Math.round((powerSegBar.width - 6) / 3)
+                                        height: powerSegBar.height - 6
+                                        y: 3
+                                        x: {
+                                            let w = (powerSegBar.width - 6) / 3
+                                            if (controlPanelWindow.currentPowerProfile === "power-saver") return Math.round(3 + w * 2)
+                                            if (controlPanelWindow.currentPowerProfile === "balanced") return Math.round(3 + w)
+                                            return 3
+                                        }
+                                        radius: 9
+                                        color: controlPanelWindow.accentColor
+                                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                                    }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 3
+                                        spacing: 0
+
+                                        // Performance
+                                        Item {
+                                            Layout.fillWidth: true
+                                            Layout.fillHeight: true
+                                            Row {
+                                                anchors.centerIn: parent
+                                                spacing: 5
+                                                Text {
+                                                    text: "\uf0e7"
+                                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
+                                                    color: controlPanelWindow.currentPowerProfile === "performance" ? "#11111B" : "#CDD6F4"
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                                Text {
+                                                    text: "Performance"
+                                                    font { family: "Inter"; pixelSize: 11; weight: Font.Bold }
+                                                    color: controlPanelWindow.currentPowerProfile === "performance" ? "#11111B" : "#CDD6F4"
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: controlPanelWindow.setPowerProfile("performance")
+                                            }
+                                        }
+
+                                        // Balanced
+                                        Item {
+                                            Layout.fillWidth: true
+                                            Layout.fillHeight: true
+                                            Row {
+                                                anchors.centerIn: parent
+                                                spacing: 5
+                                                Text {
+                                                    text: "\uf24e"
+                                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
+                                                    color: controlPanelWindow.currentPowerProfile === "balanced" ? "#11111B" : "#CDD6F4"
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                                Text {
+                                                    text: "Balanced"
+                                                    font { family: "Inter"; pixelSize: 11; weight: Font.Bold }
+                                                    color: controlPanelWindow.currentPowerProfile === "balanced" ? "#11111B" : "#CDD6F4"
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: controlPanelWindow.setPowerProfile("balanced")
+                                            }
+                                        }
+
+                                        // Saver
+                                        Item {
+                                            Layout.fillWidth: true
+                                            Layout.fillHeight: true
+                                            Row {
+                                                anchors.centerIn: parent
+                                                spacing: 5
+                                                Text {
+                                                    text: "\uf06c"
+                                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 10 }
+                                                    color: controlPanelWindow.currentPowerProfile === "power-saver" ? "#11111B" : "#CDD6F4"
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                                Text {
+                                                    text: "Saver"
+                                                    font { family: "Inter"; pixelSize: 11; weight: Font.Bold }
+                                                    color: controlPanelWindow.currentPowerProfile === "power-saver" ? "#11111B" : "#CDD6F4"
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: controlPanelWindow.setPowerProfile("power-saver")
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // ── 3. Refresh Rate Pill ──
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: 16
-                        color: controlPanelWindow.currentRefreshRate >= 120 ? controlPanelWindow.accentColor : controlPanelWindow.bgColor2
-                        Behavior on color { ColorAnimation { duration: 180 } }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.setRefreshRate(controlPanelWindow.currentRefreshRate >= 120 ? 60 : 144)
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: 14
-                                rightMargin: 14
-                            }
-                            spacing: 12
-
-                            Text {
-                                text: "\uf26c" // display
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 15 }
-                                color: controlPanelWindow.currentRefreshRate >= 120 ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                            }
+                        // ══════════════════════════════════════════
+                        // SECTION B: DISPLAY & GRAPHICS
+                        // ══════════════════════════════════════════
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: displaySectionCol.implicitHeight + 20
+                            radius: 14
+                            color: "#161620"
+                            border.width: 1
+                            border.color: "#2C2C3C"
 
                             ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                Text {
-                                    text: "Refresh Rate"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.currentRefreshRate >= 120 ? controlPanelWindow.bgColor : "#FFFFFF"
-                                    elide: Text.ElideRight
+                                id: displaySectionCol
+                                anchors {
+                                    top: parent.top
+                                    left: parent.left
+                                    right: parent.right
+                                    margins: 10
                                 }
+                                spacing: 8
 
-                                Text {
+                                // Section Header Row
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: controlPanelWindow.currentRefreshRate >= 120 ? "144Hz Smooth" : "60Hz Saver"
-                                    font { family: "Inter"; pixelSize: 11 }
-                                    color: controlPanelWindow.currentRefreshRate >= 120 ? Qt.darker(controlPanelWindow.bgColor, 1.4) : controlPanelWindow.fgColor
-                                    elide: Text.ElideRight
+                                    spacing: 6
+
+                                    Text {
+                                        text: "\uf26c" // tv/display
+                                        font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                        color: controlPanelWindow.accentColor
+                                    }
+
+                                    Text {
+                                        text: "DISPLAY & GRAPHICS"
+                                        font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                        color: "#A6ADC8"
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    Text {
+                                        text: "eDP-1 • 1080p"
+                                        font { family: "Inter"; pixelSize: 9; weight: Font.Medium }
+                                        color: "#89B4FA"
+                                    }
+                                }
+
+                                // 1. Refresh Rate Setting Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 44
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf26c"
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.accentColor
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Display Refresh Rate"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.currentRefreshRate >= 120 ? "144Hz Ultra-Smooth Mode" : "60Hz Battery Saver Mode"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.currentRefreshRate >= 120 ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Refresh rate 2-segmented selector
+                                    Rectangle {
+                                        width: 124
+                                        height: 28
+                                        radius: 14
+                                        color: "#121218"
+                                        border.width: 1
+                                        border.color: "#282836"
+
+                                        // Active sliding indicator
+                                        Rectangle {
+                                            width: 58
+                                            height: 22
+                                            y: 3
+                                            x: controlPanelWindow.currentRefreshRate >= 120 ? 3 : 63
+                                            radius: 11
+                                            color: controlPanelWindow.accentColor
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            spacing: 0
+
+                                            Item {
+                                                Layout.fillWidth: true
+                                                Layout.fillHeight: true
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "144Hz"
+                                                    font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                                    color: controlPanelWindow.currentRefreshRate >= 120 ? "#11111B" : "#CDD6F4"
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: controlPanelWindow.setRefreshRate(144)
+                                                }
+                                            }
+
+                                            Item {
+                                                Layout.fillWidth: true
+                                                Layout.fillHeight: true
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "60Hz"
+                                                    font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                                    color: controlPanelWindow.currentRefreshRate < 120 ? "#11111B" : "#CDD6F4"
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: controlPanelWindow.setRefreshRate(60)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 2. Night Light Setting Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 42
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf186" // moon
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.nightLightActive ? controlPanelWindow.accentColor : "#6C7086"
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Night Light"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.nightLightActive ? "Warm GPU color temperature active" : "Natural screen colors"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.nightLightActive ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Native Switch
+                                    Rectangle {
+                                        width: 38
+                                        height: 22
+                                        radius: 11
+                                        color: controlPanelWindow.nightLightActive ? controlPanelWindow.accentColor : "#282838"
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                                        Rectangle {
+                                            width: 16
+                                            height: 16
+                                            radius: 8
+                                            y: 3
+                                            x: controlPanelWindow.nightLightActive ? 19 : 3
+                                            color: controlPanelWindow.nightLightActive ? "#11111B" : "#CDD6F4"
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: controlPanelWindow.toggleNightLight()
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 3. Window Blur Setting Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 42
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf043" // droplet
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.blurEnabled ? controlPanelWindow.accentColor : "#6C7086"
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Window Blur"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.blurEnabled ? "Compositor dual-cavity background blur enabled" : "Disabled (reduces GPU load)"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.blurEnabled ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Native Switch
+                                    Rectangle {
+                                        width: 38
+                                        height: 22
+                                        radius: 11
+                                        color: controlPanelWindow.blurEnabled ? controlPanelWindow.accentColor : "#282838"
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                                        Rectangle {
+                                            width: 16
+                                            height: 16
+                                            radius: 8
+                                            y: 3
+                                            x: controlPanelWindow.blurEnabled ? 19 : 3
+                                            color: controlPanelWindow.blurEnabled ? "#11111B" : "#CDD6F4"
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: controlPanelWindow.toggleBlur()
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 4. Desktop Animations Setting Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 42
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf0d0" // magic wand
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.animationsEnabled ? controlPanelWindow.accentColor : "#6C7086"
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Desktop Animations"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.animationsEnabled ? "Smooth window transitions & workspace gliding" : "Instant snapping mode"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.animationsEnabled ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Native Switch
+                                    Rectangle {
+                                        width: 38
+                                        height: 22
+                                        radius: 11
+                                        color: controlPanelWindow.animationsEnabled ? controlPanelWindow.accentColor : "#282838"
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                                        Rectangle {
+                                            width: 16
+                                            height: 16
+                                            radius: 8
+                                            y: 3
+                                            x: controlPanelWindow.animationsEnabled ? 19 : 3
+                                            color: controlPanelWindow.animationsEnabled ? "#11111B" : "#CDD6F4"
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: controlPanelWindow.toggleAnimations()
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // ── 4. Window Blur Pill ──
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: 16
-                        color: controlPanelWindow.blurEnabled ? controlPanelWindow.accentColor : controlPanelWindow.bgColor2
-                        Behavior on color { ColorAnimation { duration: 180 } }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.toggleBlur()
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: 14
-                                rightMargin: 14
-                            }
-                            spacing: 12
-
-                            Text {
-                                text: "\uf043" // tint
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 15 }
-                                color: controlPanelWindow.blurEnabled ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                            }
+                        // ══════════════════════════════════════════
+                        // SECTION C: TRACKPAD & GESTURES
+                        // ══════════════════════════════════════════
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: trackSectionCol.implicitHeight + 20
+                            radius: 14
+                            color: "#161620"
+                            border.width: 1
+                            border.color: "#2C2C3C"
 
                             ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                Text {
-                                    text: "Window Blur"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.blurEnabled ? controlPanelWindow.bgColor : "#FFFFFF"
-                                    elide: Text.ElideRight
+                                id: trackSectionCol
+                                anchors {
+                                    top: parent.top
+                                    left: parent.left
+                                    right: parent.right
+                                    margins: 10
                                 }
+                                spacing: 8
 
-                                Text {
+                                // Section Header Row
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: controlPanelWindow.blurEnabled ? "Enabled" : "Off"
-                                    font { family: "Inter"; pixelSize: 11 }
-                                    color: controlPanelWindow.blurEnabled ? Qt.darker(controlPanelWindow.bgColor, 1.4) : controlPanelWindow.fgColor
-                                    elide: Text.ElideRight
+                                    spacing: 6
+
+                                    Text {
+                                        text: "\uf245" // pointer
+                                        font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                        color: controlPanelWindow.accentColor
+                                    }
+
+                                    Text {
+                                        text: "TRACKPAD & GESTURES"
+                                        font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                        color: "#A6ADC8"
+                                    }
+                                }
+
+                                // 1. Natural Scroll Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 42
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf07d" // arrows up/down
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.naturalScrollEnabled ? controlPanelWindow.accentColor : "#6C7086"
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Natural Scrolling"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.naturalScrollEnabled ? "Content tracks finger gesture direction (macOS)" : "Standard mouse-wheel scroll direction"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.naturalScrollEnabled ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Native Switch
+                                    Rectangle {
+                                        width: 38
+                                        height: 22
+                                        radius: 11
+                                        color: controlPanelWindow.naturalScrollEnabled ? controlPanelWindow.accentColor : "#282838"
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                                        Rectangle {
+                                            width: 16
+                                            height: 16
+                                            radius: 8
+                                            y: 3
+                                            x: controlPanelWindow.naturalScrollEnabled ? 19 : 3
+                                            color: controlPanelWindow.naturalScrollEnabled ? "#11111B" : "#CDD6F4"
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: controlPanelWindow.toggleNaturalScroll()
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 2. Tap to Click Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 42
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf245" // hand pointer
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.tapToClickEnabled ? controlPanelWindow.accentColor : "#6C7086"
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Tap to Click"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.tapToClickEnabled ? "Surface tap triggers primary click" : "Physical trackpad click required"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.tapToClickEnabled ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Native Switch
+                                    Rectangle {
+                                        width: 38
+                                        height: 22
+                                        radius: 11
+                                        color: controlPanelWindow.tapToClickEnabled ? controlPanelWindow.accentColor : "#282838"
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                                        Rectangle {
+                                            width: 16
+                                            height: 16
+                                            radius: 8
+                                            y: 3
+                                            x: controlPanelWindow.tapToClickEnabled ? 19 : 3
+                                            color: controlPanelWindow.tapToClickEnabled ? "#11111B" : "#CDD6F4"
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: controlPanelWindow.toggleTapToClick()
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // ── 5. Natural Scroll Pill ──
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: 16
-                        color: controlPanelWindow.naturalScrollEnabled ? controlPanelWindow.accentColor : controlPanelWindow.bgColor2
-                        Behavior on color { ColorAnimation { duration: 180 } }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.toggleNaturalScroll()
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: 14
-                                rightMargin: 14
-                            }
-                            spacing: 12
-
-                            Text {
-                                text: "\uf07d" // arrows-up-down
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 15 }
-                                color: controlPanelWindow.naturalScrollEnabled ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                            }
+                        // ══════════════════════════════════════════
+                        // SECTION D: SYSTEM & SHORTCUTS
+                        // ══════════════════════════════════════════
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: sysSectionCol.implicitHeight + 20
+                            radius: 14
+                            color: "#161620"
+                            border.width: 1
+                            border.color: "#2C2C3C"
 
                             ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                Text {
-                                    text: "Natural Scroll"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.naturalScrollEnabled ? controlPanelWindow.bgColor : "#FFFFFF"
-                                    elide: Text.ElideRight
+                                id: sysSectionCol
+                                anchors {
+                                    top: parent.top
+                                    left: parent.left
+                                    right: parent.right
+                                    margins: 10
                                 }
+                                spacing: 8
 
-                                Text {
+                                // Section Header Row
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: controlPanelWindow.naturalScrollEnabled ? "macOS Scroll" : "Standard"
-                                    font { family: "Inter"; pixelSize: 11 }
-                                    color: controlPanelWindow.naturalScrollEnabled ? Qt.darker(controlPanelWindow.bgColor, 1.4) : controlPanelWindow.fgColor
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-                    }
+                                    spacing: 6
 
-                    // ── 6. Tap to Click Pill ──
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: 16
-                        color: controlPanelWindow.tapToClickEnabled ? controlPanelWindow.accentColor : controlPanelWindow.bgColor2
-                        Behavior on color { ColorAnimation { duration: 180 } }
+                                    Text {
+                                        text: "\uf121" // code
+                                        font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                        color: controlPanelWindow.accentColor
+                                    }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: controlPanelWindow.toggleTapToClick()
-                        }
-
-                        RowLayout {
-                            anchors {
-                                fill: parent
-                                leftMargin: 14
-                                rightMargin: 14
-                            }
-                            spacing: 12
-
-                            Text {
-                                text: "\uf245" // hand-pointer
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 15 }
-                                color: controlPanelWindow.tapToClickEnabled ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                Text {
-                                    text: "Tap to Click"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.tapToClickEnabled ? controlPanelWindow.bgColor : "#FFFFFF"
-                                    elide: Text.ElideRight
+                                    Text {
+                                        text: "SYSTEM & SHORTCUTS"
+                                        font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                        color: "#A6ADC8"
+                                    }
                                 }
 
-                                Text {
+                                // 1. Caffeine Mode Row
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: controlPanelWindow.tapToClickEnabled ? "Enabled" : "Physical Only"
-                                    font { family: "Inter"; pixelSize: 11 }
-                                    color: controlPanelWindow.tapToClickEnabled ? Qt.darker(controlPanelWindow.bgColor, 1.4) : controlPanelWindow.fgColor
-                                    elide: Text.ElideRight
+                                    Layout.preferredHeight: 42
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf0f4" // coffee
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 12 }
+                                            color: controlPanelWindow.caffeineActive ? controlPanelWindow.accentColor : "#6C7086"
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Caffeine Mode"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#FFFFFF"
+                                        }
+                                        Text {
+                                            text: controlPanelWindow.caffeineActive ? "Inhibiting screen timeout, display sleep, & lock" : "Standard sleep & screen-off policy"
+                                            font { family: "Inter"; pixelSize: 10 }
+                                            color: controlPanelWindow.caffeineActive ? controlPanelWindow.accentColor : "#888899"
+                                        }
+                                    }
+
+                                    // Native Switch
+                                    Rectangle {
+                                        width: 38
+                                        height: 22
+                                        radius: 11
+                                        color: controlPanelWindow.caffeineActive ? controlPanelWindow.accentColor : "#282838"
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                                        Rectangle {
+                                            width: 16
+                                            height: 16
+                                            radius: 8
+                                            y: 3
+                                            x: controlPanelWindow.caffeineActive ? 19 : 3
+                                            color: controlPanelWindow.caffeineActive ? "#11111B" : "#CDD6F4"
+                                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: controlPanelWindow.toggleCaffeine()
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 2. Hyprland Config Action Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 38
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf121"
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                            color: controlPanelWindow.accentColor
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Hyprland Configuration"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#CDD6F4"
+                                        }
+                                        Text {
+                                            text: "~/.config/hypr/hyprland.lua"
+                                            font { family: "JetBrainsMono NF"; pixelSize: 9 }
+                                            color: "#6C7086"
+                                        }
+                                    }
+
+                                    // Launch Button
+                                    Rectangle {
+                                        implicitWidth: hyprBtnText.implicitWidth + 18
+                                        implicitHeight: 24
+                                        radius: 12
+                                        color: hyprRowArea.containsMouse ? "#2A2A3C" : "#1A1A24"
+                                        border.width: 1
+                                        border.color: hyprRowArea.containsMouse ? controlPanelWindow.accentColor : "#2E2E3E"
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                        Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                                        Row {
+                                            id: hyprBtnText
+                                            anchors.centerIn: parent
+                                            spacing: 5
+                                            Text {
+                                                text: "\uf08e" // external-link
+                                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 9 }
+                                                color: controlPanelWindow.accentColor
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text {
+                                                text: "Edit"
+                                                font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                                color: "#CDD6F4"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: hyprRowArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                controlPanelWindow.closeRequested()
+                                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/hypr/hyprland.lua"])
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 3. Ghostty Terminal Action Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 38
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf120" // terminal
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                            color: controlPanelWindow.accentColor
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Ghostty Terminal Config"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#CDD6F4"
+                                        }
+                                        Text {
+                                            text: "~/.config/ghostty/config"
+                                            font { family: "JetBrainsMono NF"; pixelSize: 9 }
+                                            color: "#6C7086"
+                                        }
+                                    }
+
+                                    // Launch Button
+                                    Rectangle {
+                                        implicitWidth: ghostBtnText.implicitWidth + 18
+                                        implicitHeight: 24
+                                        radius: 12
+                                        color: ghostRowArea.containsMouse ? "#2A2A3C" : "#1A1A24"
+                                        border.width: 1
+                                        border.color: ghostRowArea.containsMouse ? controlPanelWindow.accentColor : "#2E2E3E"
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                        Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                                        Row {
+                                            id: ghostBtnText
+                                            anchors.centerIn: parent
+                                            spacing: 5
+                                            Text {
+                                                text: "\uf08e"
+                                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 9 }
+                                                color: controlPanelWindow.accentColor
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text {
+                                                text: "Edit"
+                                                font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                                color: "#CDD6F4"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: ghostRowArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                controlPanelWindow.closeRequested()
+                                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/ghostty/config"])
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#222230" }
+
+                                // 4. Quickshell Desktop Action Row
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 38
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 8
+                                        color: "#1E1E2A"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf121"
+                                            font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
+                                            color: controlPanelWindow.accentColor
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: "Quickshell Bar & Widgets"
+                                            font { family: "Inter"; pixelSize: 11; weight: Font.DemiBold }
+                                            color: "#CDD6F4"
+                                        }
+                                        Text {
+                                            text: "~/.config/quickshell/shell.qml"
+                                            font { family: "JetBrainsMono NF"; pixelSize: 9 }
+                                            color: "#6C7086"
+                                        }
+                                    }
+
+                                    // Launch Button
+                                    Rectangle {
+                                        implicitWidth: qsBtnText.implicitWidth + 18
+                                        implicitHeight: 24
+                                        radius: 12
+                                        color: qsRowArea.containsMouse ? "#2A2A3C" : "#1A1A24"
+                                        border.width: 1
+                                        border.color: qsRowArea.containsMouse ? controlPanelWindow.accentColor : "#2E2E3E"
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                        Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                                        Row {
+                                            id: qsBtnText
+                                            anchors.centerIn: parent
+                                            spacing: 5
+                                            Text {
+                                                text: "\uf08e"
+                                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 9 }
+                                                color: controlPanelWindow.accentColor
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text {
+                                                text: "Edit"
+                                                font { family: "Inter"; pixelSize: 10; weight: Font.Bold }
+                                                color: "#CDD6F4"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: qsRowArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                controlPanelWindow.closeRequested()
+                                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/quickshell/shell.qml"])
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // ─── 3. 3-Way Power Profile Pill (Matching Pill Slider Dimensions) ───
+                // Sleek Custom Scroll Indicator
                 Rectangle {
-                    id: powerSegBar
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 46
-                    radius: 23
-                    color: controlPanelWindow.bgColor2
-
-                    // Sliding blue active pill
-                    Rectangle {
-                        id: powerActivePill
-                        width: Math.round((powerSegBar.width - 8) / 3)
-                        height: powerSegBar.height - 8
-                        y: 4
-                        x: {
-                            let w = (powerSegBar.width - 8) / 3
-                            if (controlPanelWindow.currentPowerProfile === "power-saver") return Math.round(4 + w * 2)
-                            if (controlPanelWindow.currentPowerProfile === "balanced") return Math.round(4 + w)
-                            return 4
-                        }
-                        radius: 19
-                        color: controlPanelWindow.accentColor
-                        Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 4
-                        spacing: 0
-
-                        // Performance
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: 6
-                                Text {
-                                    text: "\uf0e7"
-                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
-                                    color: controlPanelWindow.currentPowerProfile === "performance" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: "Performance"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.currentPowerProfile === "performance" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: controlPanelWindow.setPowerProfile("performance")
-                            }
-                        }
-
-                        // Balanced
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: 6
-                                Text {
-                                    text: "\uf24e"
-                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
-                                    color: controlPanelWindow.currentPowerProfile === "balanced" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: "Balanced"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.currentPowerProfile === "balanced" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: controlPanelWindow.setPowerProfile("balanced")
-                            }
-                        }
-
-                        // Saver
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: 6
-                                Text {
-                                    text: "\uf06c"
-                                    font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
-                                    color: controlPanelWindow.currentPowerProfile === "power-saver" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: "Saver"
-                                    font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                    color: controlPanelWindow.currentPowerProfile === "power-saver" ? controlPanelWindow.bgColor : controlPanelWindow.fgColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: controlPanelWindow.setPowerProfile("power-saver")
-                            }
-                        }
-                    }
-                }
-
-                // ─── 4. Quick Config Shortcuts ───
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 36
-                    spacing: 10
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        radius: 18
-                        color: hyprBtnHover.containsMouse ? Qt.lighter(controlPanelWindow.bgColor2, 1.35) : controlPanelWindow.bgColor2
-
-                        Behavior on color { ColorAnimation { duration: 120 } }
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 8
-                            Text {
-                                text: "\uf121"
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
-                                color: controlPanelWindow.accentColor
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Text {
-                                text: "hyprland.lua"
-                                font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                color: controlPanelWindow.fgColor
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-
-                        MouseArea {
-                            id: hyprBtnHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                controlPanelWindow.closeRequested()
-                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/hypr/hyprland.lua"])
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        radius: 18
-                        color: qsBtnHover.containsMouse ? Qt.lighter(controlPanelWindow.bgColor2, 1.35) : controlPanelWindow.bgColor2
-
-                        Behavior on color { ColorAnimation { duration: 120 } }
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 8
-                            Text {
-                                text: "\uf121"
-                                font { family: "Font Awesome 6 Free"; weight: Font.Bold; pixelSize: 11 }
-                                color: controlPanelWindow.accentColor
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Text {
-                                text: "quickshell"
-                                font { family: "Inter"; pixelSize: 12; weight: Font.Bold }
-                                color: controlPanelWindow.fgColor
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-
-                        MouseArea {
-                            id: qsBtnHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                controlPanelWindow.closeRequested()
-                                Quickshell.execDetached(["ghostty", "-e", "vim", Quickshell.env("HOME") + "/.config/quickshell/shell.qml"])
-                            }
-                        }
-                    }
+                    id: scrollIndicator
+                    anchors.right: parent.right
+                    anchors.rightMargin: -8
+                    width: 4
+                    radius: 2
+                    color: controlPanelWindow.accentColor
+                    opacity: settingsFlickable.moving || settingsFlickable.flicking ? 0.75 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                    visible: settingsFlickable.contentHeight > settingsFlickable.height
+                    y: settingsFlickable.y + (settingsFlickable.visibleArea.yPosition * settingsFlickable.height)
+                    height: Math.max(24, settingsFlickable.visibleArea.heightRatio * settingsFlickable.height)
                 }
             }
+
         }
     }
 }

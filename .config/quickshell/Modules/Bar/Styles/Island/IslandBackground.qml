@@ -1,0 +1,44 @@
+import QtQuick
+import QtQuick.Effects
+import qs.Core
+import qs.Core.Components
+import qs.Core.Services
+
+Item {
+    id: root
+
+    property bool enableShadow: true
+    property real radius: height / 2
+    default property alias content: contentSlot.data
+
+    ThemedShadow {
+        anchors.fill: shape
+        radius: shape.radius
+        active: root.enableShadow && !DisplayProfileService.gameModeActive && (SystemInfoService.powerProfile !== "power-saver")
+        visible: active && HyprlandService.hyprShadow && opacity > 0.001
+    }
+
+    Rectangle {
+        id: shape
+
+        anchors.fill: parent
+        radius: root.radius
+        color: Theme.bg
+        antialiasing: true
+
+        Behavior on color {
+            ColorAnimation {
+                duration: Constants.animNormal
+            }
+
+        }
+
+    }
+
+    Item {
+        id: contentSlot
+
+        anchors.fill: parent
+    }
+
+}

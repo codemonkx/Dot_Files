@@ -1112,8 +1112,8 @@ Scope {
             root.showAppLauncher = false
             root.showPowerMenu = false
             root.showWallpaperSelector = false
-            root.showControlPanel = true
-            controlPanelPopup.openSettingsView()
+            root.showControlPanel = false
+            Quickshell.execDetached(["qs", "ipc", "call", "settings", "open"])
         }
         function openSettingsTab(tab: string) {
             root.showFullPlayer = false
@@ -1122,9 +1122,8 @@ Scope {
             root.showAppLauncher = false
             root.showPowerMenu = false
             root.showWallpaperSelector = false
-            root.showControlPanel = true
-            controlPanelPopup.openSettingsView()
-            controlPanelPopup.settingsTab = tab
+            root.showControlPanel = false
+            Quickshell.execDetached(["qs", "ipc", "call", "settings", "openTab", tab])
         }
         function openPowerSettings() { openSettingsTab("power") }
         function openDisplaySettings() { openSettingsTab("display") }

@@ -13,3 +13,4 @@ __pycache__/
 
 # User specific runtime state
 .config/hypr/current_wallpaper
+.config_legacy_backup/
