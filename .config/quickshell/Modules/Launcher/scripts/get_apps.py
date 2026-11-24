@@ -33,7 +33,7 @@ def get_apps():
             continue
         for f in d.glob("*.desktop"):
             try:
-                config = configparser.ConfigParser(interpolation=None)
+                config = configparser.ConfigParser(interpolation=None, strict=False)
                 config.read(f, encoding="utf-8")
                 if "Desktop Entry" in config:
                     entry = config["Desktop Entry"]

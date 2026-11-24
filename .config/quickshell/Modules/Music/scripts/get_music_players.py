@@ -91,7 +91,7 @@ def get_installed_players():
             continue
         for f in d.glob("*.desktop"):
             try:
-                config = configparser.ConfigParser(interpolation=None)
+                config = configparser.ConfigParser(interpolation=None, strict=False)
                 config.read(f)
                 if "Desktop Entry" not in config:
                     continue
