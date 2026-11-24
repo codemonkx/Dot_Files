@@ -2,9 +2,9 @@
 
 # ❄️ Catppuccin Sapphire Hyprland + Quickshell
 
-A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** and **Quickshell** in the **Catppuccin Sapphire** colorway.
+A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland (Lua 0.57+)** and **Quickshell** in the **Catppuccin Sapphire** colorway.
 
-[![Hyprland](https://img.shields.io/badge/Hyprland-0.56+-00ADEF?style=for-the-badge&logo=archlinux&logoColor=white)](https://hyprland.org)
+[![Hyprland](https://img.shields.io/badge/Hyprland-0.57+-00ADEF?style=for-the-badge&logo=archlinux&logoColor=white)](https://hyprland.org)
 [![Quickshell](https://img.shields.io/badge/Quickshell-0.3.2+-89B4FA?style=for-the-badge&logo=qt&logoColor=white)](https://quickshell.outfoxxed.me)
 [![Catppuccin](https://img.shields.io/badge/Palette-Catppuccin%20Mocha%20Sapphire-89B4FA?style=for-the-badge)](https://github.com/catppuccin/catppuccin)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
@@ -30,7 +30,7 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
     </td>
     <td width="50%" align="center">
       <b>⚙️ System Settings Panel</b><br/>
-      <i>Unified 2×3 Grid & Sliding Power Profile</i><br/><br/>
+      <i>Unified Grid & Sliding Power Profile</i><br/><br/>
       <img src="assets/settings_panel_card.png" width="350" />
     </td>
   </tr>
@@ -62,139 +62,77 @@ A modern, fluid, and cohesive Linux desktop environment powered by **Hyprland** 
 
 ---
 
-## 🌟 Desktop Shell & UI Features
+## 🌟 Desktop Features & Architecture
 
-- **Top Bar (`Bar.qml`):** Floating curved capsule with active workspaces, live clock & calendar, dynamic music ticker, and interactive system status pill.
-- **Control Panel (`ControlPanel.qml`):**
-  - Instantaneous 144Hz C++ PipeWire volume slider with audio sink switcher.
-  - Dedicated microphone volume & mute slider with real-time feedback.
-  - Screen brightness slider with hardware backlight integration.
-  - Wi-Fi, Bluetooth, Do Not Disturb, and Notification toggles.
-- **System Settings Panel:**
-  - **Night Light:** GPU fragment shader (`night-light.frag`) warm temperature filter.
-  - **Caffeine Mode:** Prevents screen dimming and lock idle timers.
-  - **Refresh Rate:** 144Hz Smooth vs 60Hz Battery Saver instant toggle.
-  - **Window Blur:** Dynamic Hyprland blur toggle.
-  - **Touchpad:** macOS Natural Scrolling & Tap to Click controls.
-  - **Power Profiles:** 3-Way sliding pill for Performance, Balanced, and Power Saver.
-  - **Quick Shortcuts:** Instant terminal shortcuts to `hyprland.lua` and `quickshell`.
-- **Screen Share Picker (`ScreenSharePicker.qml` & `share_picker.sh`):**
-  - Replaces default Qt `hyprland-share-picker` with a native Catppuccin Sapphire Quickshell modal.
-  - Direct integration with `xdg-desktop-portal-hyprland` via `~/.config/hypr/xdph.conf`.
-  - 3-Way sliding pill for **Displays**, **Application Windows**, and **Region Selection** (`slurp`).
-  - Automatic app icon mapping, workspace indicators, and token remember support.
-- **Wallpapers (`WallpaperSelector.qml` & `WallpaperBackground.qml`):** Smooth cross-fade animation engine, category explorer, folder manager, and automatic synchronization with [`Wallpapers`](https://github.com/codemonkx/Wallpapers).
-- **Notifications (`NotificationPanel.qml` & `NotificationToasts.qml`):** Floating toast banners and collapsible history center.
-- **Lock Screen (`hyprlock.conf`):** Catppuccin Sapphire authentication card with blurred wallpaper backdrop.
+- **Modular Hyprland (0.57+ Lua):**
+  - Fully migrated to Hyprland's native Lua configuration engine.
+  - Organized modularly: `keybinds.lua`, `userprefs.lua`, `autostart.lua`, `windowrules.lua`, `monitors.lua`, `animations.lua`, and `colors.lua`.
+  - Native fallback displays, laptop lid switch handling, and dynamic cursor submap.
 
----
+- **Modular Quickshell Architecture:**
+  - **Styles:** Switch seamlessly between **Convex** (organic curved frames) and **Island** (floating pill bar with expandable widgets).
+  - **Unified `widgets` IPC Engine:** All drawers and panels run through an optimized IPC singleton (`qs ipc call widgets toggle <widgetId>`).
+  - **Top Bar (`Modules/Bar/`):** Active workspaces, dynamic music ticker, live clock & calendar, and tray management.
+  - **Control Center (`Modules/ControlCenter/`):** Real-time PipeWire volume sliders, microphone controls, screen brightness, Wi-Fi & Bluetooth management, and power profile switching.
+  - **Power Menu (`Modules/PowerMenu/`):** Quick Lock (`hyprlock`), Suspend (`systemctl suspend`), Logout (`hyprctl dispatch exit`), Reboot, and Shutdown with confirmation protection.
+  - **Application Launcher (`Modules/Launcher/`):** Fuzzy application search, categorized drawer, and frequency sorting.
+  - **Wallpaper Selector (`Modules/WallpaperSelector/`):** Live wallpaper browser with smooth background transitions via `awww-daemon`.
+  - **System Usage & Monitor (`Modules/SystemUsage/`):** Real-time CPU, GPU (NVIDIA / Intel), RAM, and swap tracking.
 
-## 🚀 Easy Setup & Installation
+- **Dual-GPU Battery & Performance Optimization (`environment.d/gpu.conf`):**
+  - Configured with `AQ_DRM_DEVICES=/dev/dri/card2:/dev/dri/card1` to drive desktop compositing on the power-efficient Intel integrated GPU while keeping the NVIDIA RTX 3050 discrete GPU available on demand for games and 3D rendering.
 
-You can install the entire desktop environment directly with a single command on any fresh Arch Linux or CachyOS installation:
-
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/codemonkx/Dot_Files/main/install.sh)"
-```
-
-Or manually clone the repository and run the installer:
-
-```bash
-git clone https://github.com/codemonkx/Dot_Files.git ~/.dotfiles
-cd ~/.dotfiles
-./install.sh
-```
-
-### Installation Modes:
-- `./install.sh` (Interactive Menu): Choose between Full Setup, Symlink Mode, Configs Only, or Packages Only.
-- `./install.sh --copy` (or `-c`): Copies all configurations cleanly to `~/.config/`.
-- `./install.sh --symlink` (or `-s`): Symlinks configuration directories from the repository to `~/.config/` (ideal for active git development).
-- `./install.sh --config-only` (or `-co`): Deploys latest configs & fonts without re-installing system packages.
-- `./install.sh --pkgs-only` (or `-po`): Installs all required official and AUR packages and enables services.
-- `./install.sh --yes` (or `-y`): Non-interactive deployment (great for automated script testing & VM spins).
-- `./install.sh --dry-run`: Preview actions and check system compatibility without altering files.
-
-### What the installer handles automatically:
-1. **Self-Bootstrapping:** Automatically clones the repository if piped through curl into bash.
-2. **Hardware & VM Detection:** Detects whether you are running on bare metal, ASUS gaming laptops (auto-configures GHelper sudoers privileges), or Virtual Machines (auto-configures software cursors).
-3. **Zero-Touch AUR Bootstrapping:** Automatically installs `yay-bin` or uses `paru` if an AUR helper is missing.
-4. **Typography & Font Cache:** Deploys bundled custom fonts (`Inter`, `Font Awesome 6 Pro`, `PixelifySans`, `Rowdies`) directly into `~/.local/share/fonts/kadal` and runs `fc-cache -f`.
-5. **Configuration Deployment & Backup:** Creates a timestamped backup of existing configs in `~/.config_backup_<timestamp>/` before deploying.
-6. **Desktop & Wallpaper Initialization:** Bundles and initializes a default high-resolution wallpaper (`~/Pictures/wall.jpg`) for immediate zero-touch first boot, with an optional prompt to clone the full 120-wallpaper pack.
-7. **Background Services & Audio:** Enables `pipewire`, `wireplumber`, `pipewire-pulse`, `power-profiles-daemon`, `bluetooth`, `paccache.timer`, and the **`workspace-autocollapse.service`** (Dynamic Gap Elimination).
-8. **Post-Install Health Validation:** Automatically verifies `hyprland --verify-config`, tests font availability, Quickshell status, and confirms clipboard and workspace daemons.
+- **Clipboard & Utilities:**
+  - Clipboard history manager with `cliphist` integration (`SUPER + V`).
+  - Native screen magnifier, OCR, and GNOME-style screenshot overlay (`SUPER + SHIFT + S`).
 
 ---
 
 ## ⌨️ Keybindings Reference
 
-| Shortcut | Description |
+### Window & Session Management
+| Shortcut | Action |
 | :--- | :--- |
-| <kbd>SUPER</kbd> + <kbd>SPACE</kbd> | Open App Launcher |
-| <kbd>SUPER</kbd> + <kbd>A</kbd> | Toggle Main Control Panel |
-| <kbd>SUPER</kbd> + <kbd>V</kbd> | Toggle Windows-style Clipboard History |
-| <kbd>SUPER</kbd> + <kbd>.</kbd> | Open Emoji & Symbol Expression Flyout |
-| <kbd>SUPER</kbd> + <kbd>I</kbd> | Toggle System Settings Panel |
-| <kbd>SUPER</kbd> + <kbd>W</kbd> | Open Wallpaper Selector |
-| <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | GNOME-style Interactive Screenshot Tool |
-| <kbd>Print</kbd> | GNOME-style Interactive Screenshot Tool |
-| <kbd>SUPER</kbd> + <kbd>N</kbd> | Toggle Notification Center |
-| <kbd>SUPER</kbd> + <kbd>M</kbd> | Toggle Full Media Player |
-| <kbd>SUPER</kbd> + <kbd>Return</kbd> | Launch Ghostty Terminal |
+| <kbd>SUPER</kbd> + <kbd>Return</kbd> | Launch Primary Terminal (`ghostty` / `kitty`) |
+| <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>Return</kbd> | Launch Floating Terminal |
+| <kbd>SUPER</kbd> + <kbd>E</kbd> | Open File Manager (`nautilus`) |
+| <kbd>SUPER</kbd> + <kbd>B</kbd> | Open Web Browser (`brave`) |
 | <kbd>SUPER</kbd> + <kbd>Q</kbd> | Close Active Window |
+| <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>M</kbd> | Exit Hyprland |
 | <kbd>SUPER</kbd> + <kbd>L</kbd> | Lock Screen (`hyprlock`) |
-| <kbd>SUPER</kbd> + <kbd>Esc</kbd> | Open Power Menu |
-| <kbd>XF86AudioMute</kbd> | Toggle Speaker Mute (with OSD) |
-| <kbd>XF86AudioMicMute</kbd> | Toggle Microphone Mute (with OSD) |
-| <kbd>XF86AudioRaiseVolume</kbd> | Volume Up (with OSD) |
-| <kbd>XF86AudioLowerVolume</kbd> | Volume Down (with OSD) |
-| <kbd>XF86MonBrightnessUp</kbd> | Brightness Up (with OSD) |
-| <kbd>XF86MonBrightnessDown</kbd> | Brightness Down (with OSD) |
+| <kbd>SUPER</kbd> + <kbd>Esc</kbd> *(or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>X</kbd>)* | Toggle Power Menu |
+| <kbd>SUPER</kbd> + <kbd>W</kbd> | Toggle Floating Mode |
+| <kbd>SUPER</kbd> + <kbd>F</kbd> | Toggle Maximized Window |
+| <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Toggle True Fullscreen |
 
----
+### Quickshell Widgets & Apps
+| Shortcut | Action |
+| :--- | :--- |
+| <kbd>SUPER</kbd> + <kbd>SPACE</kbd> *(or <kbd>SUPER</kbd>+<kbd>A</kbd>)* | Toggle Application Launcher |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>S</kbd> | Toggle Control Center |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>N</kbd> | Toggle Notifications Center |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd> | Toggle Dashboard |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd> | Toggle Full Music Player |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>C</kbd> | Toggle Calendar |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd> | Toggle System Usage / Performance Stats |
+| <kbd>SUPER</kbd> + <kbd>V</kbd> | Toggle Clipboard History |
+| <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Interactive Area Screenshot |
+| <kbd>SUPER</kbd> + <kbd>S</kbd> | Open Minflair Settings App |
+| <kbd>SUPER</kbd> + <kbd>K</kbd> | Open Keybinds Cheat Sheet |
+| <kbd>SUPER</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | Color Picker (`hyprpicker`) |
 
-## 📦 Required Dependencies & Essential Applications
-
-If you prefer to install software manually or verify your environment:
-
-### 1. Essential Desktop & Everyday Apps
-| Application | Category | Package | Description |
-| :--- | :--- | :--- | :--- |
-| **Nautilus** | File Manager | `nautilus` | Sleek GTK4 file manager with dark theme support |
-| **Micro** | Terminal Editor | `micro` | Modern terminal text editor with mouse support & standard shortcuts |
-| **Vesktop** | Discord Client | `vesktop-bin` | Wayland-optimized Discord client with screen audio sharing |
-| **Steam** | Gaming Platform | `steam` | Valve gaming client with Proton/Wine compatibility |
-| **Brave** | Web Browser | `brave-bin` | Fast, privacy-oriented web browser |
-| **Loupe** | Image Viewer | `loupe` | Fast image viewer for GNOME/Wayland |
-| **File Roller** | Archive Manager | `file-roller` | Archive manager for `.zip`, `.tar.gz`, `.7z`, and `.rar` |
-| **Pavucontrol** | Audio Device Manager | `pavucontrol` | Detailed PipeWire/PulseAudio input/output switcher |
-| **Hyprpolkitagent** | Auth Agent | `hyprpolkitagent` | Polkit authentication agent for privilege escalation |
-
-```bash
-# Official repository apps
-sudo pacman -S nautilus micro steam loupe file-roller pavucontrol hyprpolkitagent vlc
-
-# AUR apps (Vesktop & Brave)
-yay -S vesktop-bin brave-bin
-# (Or via Flatpak: flatpak install flathub dev.vencord.Vesktop com.brave.Browser)
-```
-
----
-
-### 2. Core Compositor & Environment
-```bash
-sudo pacman -S hyprland hypridle hyprlock swaybg pipewire wireplumber playerctl brightnessctl power-profiles-daemon upower networkmanager bluez bluez-utils wl-clipboard grim slurp jq python zenity ghostty fish fastfetch cava btop
-```
-
-### 3. AUR Desktop Shell
-```bash
-yay -S quickshell-git
-```
-
-### 4. Required Fonts
-```bash
-sudo pacman -S ttf-font-awesome ttf-inter ttf-jetbrains-mono-nerd
-```
+### Media & Hardware Controls
+| Shortcut | Action |
+| :--- | :--- |
+| <kbd>XF86AudioRaiseVolume</kbd> | Raise Volume (with OSD) |
+| <kbd>XF86AudioLowerVolume</kbd> | Lower Volume (with OSD) |
+| <kbd>XF86AudioMute</kbd> | Toggle Audio Mute |
+| <kbd>XF86AudioMicMute</kbd> | Toggle Microphone Mute |
+| <kbd>XF86MonBrightnessUp</kbd> | Increase Brightness (with OSD) |
+| <kbd>XF86MonBrightnessDown</kbd> | Decrease Brightness (with OSD) |
+| <kbd>XF86AudioPlay</kbd> | Play / Pause Media |
+| <kbd>XF86AudioNext</kbd> | Next Track |
+| <kbd>XF86AudioPrev</kbd> | Previous Track |
 
 ---
 
@@ -203,19 +141,64 @@ sudo pacman -S ttf-font-awesome ttf-inter ttf-jetbrains-mono-nerd
 ```
 .
 ├── .config/
-│   ├── hypr/               # Hyprland, hyprlock, hypridle, shaders & scripts
-│   ├── quickshell/         # Complete QML desktop shell components
-│   ├── ghostty/            # Terminal theme and typography
+│   ├── environment.d/      # Dual-GPU (Intel + NVIDIA) & dynamic loader variables
+│   │   ├── gpu.conf        # AQ_DRM_DEVICES optimization
+│   │   └── chromaleon.conf # Dynamic accent color injection
+│   ├── hypr/               # Modular Hyprland Lua configuration
+│   │   ├── hyprland.lua    # Main entry point & modules inclusion
+│   │   ├── keybinds.lua    # Comprehensive desktop keybindings
+│   │   ├── userprefs.lua   # Input, cursor, animations & visual settings
+│   │   ├── autostart.lua   # Daemons & background services bootstrap
+│   │   ├── windowrules.lua # App floating rules, window sizing & dialogs
+│   │   ├── monitors.lua    # Displays & monitor overrides
+│   │   ├── hypridle.conf   # Idle timeouts & power management
+│   │   ├── hyprlock.conf   # Screen locker layout & styling
+│   │   └── scripts/        # Volume, brightness, touchpad & lock scripts
+│   ├── quickshell/         # Modular Quickshell desktop environment
+│   │   ├── Core/           # Shared components, services, and windows
+│   │   ├── Modules/        # Bar, Launcher, ControlCenter, PowerMenu, etc.
+│   │   ├── Scripts/        # Helper Python scripts for system operations
+│   │   ├── assets/         # SVG icons & vector assets
+│   │   └── shell.qml       # Main Quickshell entrypoint & IPC router
+│   ├── ghostty/            # Ghostty terminal config & theme
+│   ├── fish/               # Fish shell configuration
 │   ├── fastfetch/          # Custom fastfetch ASCII art & spec sheet
 │   ├── cava/               # Audio visualizer config & shaders
-│   ├── btop/               # System monitor theme
-│   └── fish/               # Fish shell configuration
+│   └── btop/               # System monitor theme
 ├── assets/                 # High-resolution screenshots and showcase media
 ├── install.sh              # Automated interactive installer
 ├── uninstall.sh            # Backup restorer & uninstaller
 ├── .gitignore              # Clean ignore rules
-└── README.md               # Documentation & keybinding guide
+└── README.md               # Documentation & setup guide
 ```
+
+---
+
+## 🚀 Installation & Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/codemonkx/Dot_Files.git ~/Dot_Files
+   cd ~/Dot_Files
+   ```
+
+2. **Symlink to `~/.config/` (Recommended):**
+   ```bash
+   ln -sfn ~/Dot_Files/.config/hypr ~/.config/hypr
+   ln -sfn ~/Dot_Files/.config/quickshell ~/.config/quickshell
+   ln -sfn ~/Dot_Files/.config/environment.d ~/.config/environment.d
+   ```
+
+3. **Install Core Packages (Arch / CachyOS):**
+   ```bash
+   sudo pacman -S hyprland hypridle hyprlock pipewire wireplumber brightnessctl power-profiles-daemon bluez bluez-utils wl-clipboard cliphist ghostty kitty fish fastfetch btop
+   yay -S quickshell-git awww-daemon hyprpicker
+   ```
+
+4. **Reload Environment:**
+   ```bash
+   hyprctl reload
+   ```
 
 ---
 
